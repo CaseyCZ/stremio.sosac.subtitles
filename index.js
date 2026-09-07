@@ -1,6 +1,5 @@
 const express = require('express');
 const https = require('https');
-const crypto = require('crypto');
 
 const app = express();
 const PORT = process.env.PORT || 7000;
@@ -9,7 +8,7 @@ const SOSAC_API_DOMAIN = 'kodi-api.sosac.to';
 
 const manifest = {
     id: 'org.stremio.sosac.streamuj.subtitles.public',
-    version: '2.1.0',
+    version: '2.3.0',
     name: 'Sosáč + Streamuj CZ Titulky',
     description: 'Komunitní doplněk pro české titulky ze Sosáč / Streamuj.tv',
     types: ['movie', 'series'],
@@ -18,15 +17,15 @@ const manifest = {
     catalogs: []
 };
 
-// Pomocná HTTPS funkce předávající dynamické cookies
+// Pomocná HTTPS funkce předávající autorizační cookies
 function httpsGet(url, username, passMd5, customHeaders = {}) {
     return new Promise((resolve, reject) => {
         const options = {
             headers: {
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-                'Accept': 'application/json, text/plain, */*',
+                'Accept': '*/*',
                 'Referer': 'https://www.streamuj.tv/',
-                'Cookie': `pass=${username}%3A%3A%3A${passMd5}`,
+                'Cookie': `pass=${username}%3A%3A%3A${passMd5}; sublanguage=1; quality=1; videolanguage=cs`,
                 ...customHeaders
             },
             rejectUnauthorized: false,
@@ -37,7 +36,7 @@ function httpsGet(url, username, passMd5, customHeaders = {}) {
             let data = '';
             res.on('data', chunk => data += chunk);
             res.on('end', () => {
-                if (res.statusCode >= 200 && res.statusCode < 300) {
+                if (res.statusCode >= 200 && res.statusCode < 400) {
                     resolve(data);
                 } else {
                     reject(new Error(`HTTP Status ${res.statusCode}`));
@@ -53,6 +52,19 @@ function httpsGet(url, username, passMd5, customHeaders = {}) {
     });
 }
 
+// Extrakce Streamuj ID z datových struktur
+function extractStreamujId(ep) {
+    if (!ep) return null;
+    if (typeof ep === 'string') return ep;
+    if (ep.l) return ep.l;
+    if (ep.link) return ep.link;
+    if (ep.streamujId) return ep.streamujId;
+    if (Array.isArray(ep.mirrors) && ep.mirrors.length > 0) {
+        return ep.mirrors[0].l || ep.mirrors[0].link || ep.mirrors[0].id;
+    }
+    return null;
+}
+
 // Získání detailu ze Sosáče
 async function fetchSosacDetailPublic(type, id, username, passMd5) {
     try {
@@ -60,32 +72,86 @@ async function fetchSosacDetailPublic(type, id, username, passMd5) {
             ? `https://${SOSAC_API_DOMAIN}/movies/${id}` 
             : `https://${SOSAC_API_DOMAIN}/series/${id}`;
         
-        const rawData = await httpsGet(endpoint, username, passMd5, { 'Referer': 'https://sosac.tv/', 'Origin': 'https://sosac.tv' });
+        const rawData = await httpsGet(endpoint, username, passMd5, { 
+            'Referer': 'https://sosac.tv/', 
+            'Origin': 'https://sosac.tv',
+            'Accept': 'application/json'
+        });
+
+        if (rawData.trim().startsWith('<')) return null;
+
         const data = JSON.parse(rawData);
         return data.item || data.movie || data.show || data;
     } catch (err) {
-        console.error('[Sosac Public API] Chyba:', err.message);
+        console.error('[Sosac API Error]:', err.message);
         return null;
     }
 }
 
-// Extrakce titulků z HTML
-function parseSubtitlesFromHtml(htmlText, authParam) {
-    const subMatch = htmlText.match(/sub0:\s*"([^"]+)"/);
-    if (!subMatch || !subMatch[1]) return [];
+// Přesná extrakce titulků z jw7_plugin konfigurace
+async function fetchSubtitlesFromStreamuj(streamujId, username, passMd5, reqHost) {
+    const subtitles = [];
+    const addedUrls = new Set();
 
-    const [langName, rawSubUrl] = subMatch[1].split('>');
-    if (!rawSubUrl) return [];
+    const addSub = (rawUrl, label = 'Čeština') => {
+        if (!rawUrl) return;
+        let cleanUrl = rawUrl.trim().replace(/^["']|["']$/g, '');
+        if (!cleanUrl.startsWith('http')) {
+            cleanUrl = cleanUrl.startsWith('/') ? `https://www.streamuj.tv${cleanUrl}` : `https://www.streamuj.tv/${cleanUrl}`;
+        }
+        
+        if (!addedUrls.has(cleanUrl)) {
+            addedUrls.add(cleanUrl);
+            
+            const langLower = label.toLowerCase();
+            let langCode = 'cs';
+            if (langLower.includes('sk') || langLower.includes('slovensk')) langCode = 'sk';
+            if (langLower.includes('en') || langLower.includes('anglick')) langCode = 'en';
 
-    return [{
-        id: "streamuj_sub_cs",
-        url: rawSubUrl + authParam,
-        lang: "cs",
-        file_name: `Streamuj.tv - ${langName || 'čeština'}`
-    }];
+            // Přesměrování stahování přes interní proxy s autorizací
+            const proxyUrl = `https://${reqHost}/sub-proxy?url=${encodeURIComponent(cleanUrl)}&u=${encodeURIComponent(username)}&p=${encodeURIComponent(passMd5)}`;
+
+            subtitles.push({
+                id: `streamuj_sub_${subtitles.length}`,
+                url: proxyUrl,
+                lang: langCode,
+                file_name: `Streamuj.tv - ${label}`
+            });
+        }
+    };
+
+    try {
+        const videoUrl = `https://www.streamuj.tv/video/${streamujId}`;
+        const htmlText = await httpsGet(videoUrl, username, passMd5);
+
+        // Parsování atributu sub0 / sub1 z objektu jwplayer pluginu
+        const subRegex = /sub\d+\s*:\s*["']([^"']+)["']/gi;
+        let match;
+        while ((match = subRegex.exec(htmlText)) !== null) {
+            const val = match[1];
+            if (val.includes('>')) {
+                const [label, subUrl] = val.split('>');
+                addSub(subUrl, label);
+            } else if (val.startsWith('http') || val.startsWith('/')) {
+                addSub(val, 'Čeština');
+            }
+        }
+
+        // Záložní hledání obecných VTT/SRT souborů
+        if (subtitles.length === 0) {
+            const fallbackRegex = /(https?:\/\/[^"'\s]+\?streamuj=subtitles[^"'\s]*)/gi;
+            while ((match = fallbackRegex.exec(htmlText)) !== null) {
+                addSub(match[1], 'Čeština');
+            }
+        }
+
+    } catch (err) {
+        console.error('[Streamuj Subtitles Error]:', err.message);
+    }
+
+    return subtitles;
 }
 
-// Rozkódování uživatelské konfigurace z URL
 function parseUserConfig(configStr) {
     if (!configStr || !configStr.includes(':')) return null;
     const [username, passMd5] = configStr.split(':');
@@ -96,12 +162,24 @@ function parseUserConfig(configStr) {
 // ROUTY SERVERU
 // ==========================================
 
-// Přesměrování z konfigurace s vygenerovaným tokenem na hlavní čistou stránku
-app.get('/:config/configure', (req, res) => {
-    res.redirect('/');
+// Proxy pro bezpečné stažení titulků se zachováním autorizační cookie
+app.get('/sub-proxy', async (req, res) => {
+    const { url, u, p } = req.query;
+    if (!url || !u || !p) return res.status(400).send('Chybí parametry.');
+
+    try {
+        const subData = await httpsGet(decodeURIComponent(url), u, p);
+        res.setHeader('Access-Control-Allow-Origin', '*');
+        res.setHeader('Content-Type', 'text/vtt; charset=utf-8');
+        return res.send(subData);
+    } catch (e) {
+        console.error('[Proxy Error]:', e.message);
+        return res.status(500).send('Chyba při stahování titulků.');
+    }
 });
 
-// Webová konfigurační stránka (Landing Page)
+app.get('/:config/configure', (req, res) => res.redirect('/'));
+
 app.get(['/', '/configure'], (req, res) => {
     res.send(`
     <!DOCTYPE html>
@@ -111,32 +189,23 @@ app.get(['/', '/configure'], (req, res) => {
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>Sosáč Titulky - Stremio Addon</title>
         <style>
-            body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #0f172a; color: #f8fafc; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; padding: 1rem; box-sizing: border-box; }
-            .card { background: #1e293b; padding: 2rem; border-radius: 1rem; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.5); width: 100%; max-width: 440px; }
-            h1 { font-size: 1.5rem; font-weight: 700; margin-bottom: 0.5rem; color: #38bdf8; text-align: center; }
+            body { font-family: system-ui, sans-serif; background: #0f172a; color: #f8fafc; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; padding: 1rem; box-sizing: border-box; }
+            .card { background: #1e293b; padding: 2rem; border-radius: 1rem; width: 100%; max-width: 440px; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.5); }
+            h1 { font-size: 1.5rem; font-weight: 700; color: #38bdf8; text-align: center; margin-bottom: 0.5rem; }
             p { font-size: 0.875rem; color: #94a3b8; text-align: center; margin-bottom: 1.5rem; }
             .field { margin-bottom: 1.25rem; }
             label { display: block; font-size: 0.875rem; margin-bottom: 0.5rem; color: #cbd5e1; }
-            .password-wrapper { position: relative; display: flex; align-items: center; }
             input { width: 100%; padding: 0.75rem; border-radius: 0.5rem; border: 1px solid #334155; background: #0f172a; color: white; box-sizing: border-box; }
-            input:focus { border-color: #38bdf8; outline: none; }
-            .password-wrapper input { padding-right: 4.5rem; }
-            .toggle-pass { position: absolute; right: 0.5rem; background: transparent; border: none; color: #38bdf8; font-size: 0.8rem; font-weight: 600; cursor: pointer; padding: 0.4rem; margin: 0; width: auto; }
-            .toggle-pass:hover { color: #7dd3fc; background: transparent; }
-            button, .btn { width: 100%; padding: 0.875rem; border-radius: 0.5rem; border: none; background: #0284c7; color: white; font-weight: 600; cursor: pointer; transition: background 0.2s; margin-top: 0.5rem; text-align: center; text-decoration: none; display: block; box-sizing: border-box; }
+            button, .btn { width: 100%; padding: 0.875rem; border-radius: 0.5rem; border: none; background: #0284c7; color: white; font-weight: 600; cursor: pointer; text-align: center; text-decoration: none; display: block; box-sizing: border-box; }
             button:hover, .btn:hover { background: #0369a1; }
-            .btn-secondary { background: #334155; margin-top: 0.5rem; }
-            .btn-secondary:hover { background: #475569; }
             #result { display: none; margin-top: 1.5rem; padding-top: 1.5rem; border-top: 1px solid #334155; }
-            .url-box { margin-top: 1rem; }
-            .success-msg { color: #4ade80; font-size: 0.8rem; text-align: center; margin-top: 0.5rem; display: none; }
         </style>
         <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
     </head>
     <body>
         <div class="card">
             <h1>Sosáč CZ Titulky</h1>
-            <p>Zadejte své přihlašovací údaje ze Sosáč.tv pro generování instalačního odkazu.</p>
+            <p>Zadejte své přihlašovací údaje ze Sosáč.tv pro generování doplňku.</p>
             <form id="configForm">
                 <div class="field">
                     <label for="username">Uživatelské jméno</label>
@@ -144,90 +213,27 @@ app.get(['/', '/configure'], (req, res) => {
                 </div>
                 <div class="field">
                     <label for="password">Heslo</label>
-                    <div class="password-wrapper">
-                        <input type="password" id="password" required placeholder="••••••••">
-                        <button type="button" id="togglePassBtn" class="toggle-pass">Zobrazit</button>
-                    </div>
+                    <input type="password" id="password" required placeholder="••••••••">
                 </div>
-                <button type="submit">Vygenerovat odkaz</button>
+                <button type="submit">Vygenerovat instalační odkaz</button>
             </form>
 
             <div id="result">
                 <a id="stremioBtn" href="#" class="btn">Instalovat do Stremio</a>
-                
-                <div class="url-box">
-                    <label style="margin-top:0.75rem;">Nebo zkopírujte HTTPS URL do vyhledávání ve Stremiu:</label>
-                    <input type="text" id="httpsInput" readonly onclick="this.select()" style="margin-bottom:0.5rem;">
-                    <button id="copyBtn" type="button" class="btn btn-secondary">Kopírovat HTTPS odkaz</button>
-                    <div id="copySuccess" class="success-msg">✓ Odkaz byl zkopírován! Vložte jej do vyhledávání doplňků ve Stremiu.</div>
-                </div>
             </div>
         </div>
 
         <script>
-            let generatedHttpsUrl = '';
-
-            document.addEventListener('DOMContentLoaded', function() {
-                const savedUser = localStorage.getItem('sosac_user');
-                const savedPass = localStorage.getItem('sosac_pass');
-                if (savedUser) document.getElementById('username').value = savedUser;
-                if (savedPass) document.getElementById('password').value = savedPass;
-            });
-
-            document.getElementById('togglePassBtn').addEventListener('click', function() {
-                const passInput = document.getElementById('password');
-                if (passInput.type === 'password') {
-                    passInput.type = 'text';
-                    this.textContent = 'Skrýt';
-                } else {
-                    passInput.type = 'password';
-                    this.textContent = 'Zobrazit';
-                }
-            });
-
             document.getElementById('configForm').addEventListener('submit', function(e) {
                 e.preventDefault();
-                try {
-                    const u = document.getElementById('username').value.trim();
-                    const p = document.getElementById('password').value;
-                    
-                    if (typeof CryptoJS === 'undefined') {
-                        alert('Chyba: Nepodařilo se načíst kryptografickou knihovnu. Zkontrolujte připojení.');
-                        return;
-                    }
-
-                    localStorage.setItem('sosac_user', u);
-                    localStorage.setItem('sosac_pass', p);
-
-                    const md5 = CryptoJS.MD5(p).toString();
-                    const host = window.location.host;
-                    
-                    const stremioUrl = 'stremio://' + host + '/' + encodeURIComponent(u) + ':' + md5 + '/manifest.json';
-                    generatedHttpsUrl = 'https://' + host + '/' + encodeURIComponent(u) + ':' + md5 + '/manifest.json';
-
-                    document.getElementById('stremioBtn').href = stremioUrl;
-                    document.getElementById('httpsInput').value = generatedHttpsUrl;
-                    document.getElementById('result').style.display = 'block';
-
-                    setTimeout(() => {
-                        window.location.href = stremioUrl;
-                    }, 150);
-                } catch (err) {
-                    alert('Chyba: ' + err.message);
-                }
-            });
-
-            document.getElementById('copyBtn').addEventListener('click', function() {
-                if (!generatedHttpsUrl) return;
-                const input = document.getElementById('httpsInput');
-                input.select();
-                navigator.clipboard.writeText(generatedHttpsUrl).then(function() {
-                    const msg = document.getElementById('copySuccess');
-                    msg.style.display = 'block';
-                    setTimeout(() => msg.style.display = 'none', 4000);
-                }).catch(function() {
-                    prompt('Zkopírujte si odkaz ručně:', generatedHttpsUrl);
-                });
+                const u = document.getElementById('username').value.trim();
+                const p = document.getElementById('password').value;
+                const md5 = CryptoJS.MD5(p).toString();
+                const host = window.location.host;
+                const stremioUrl = 'stremio://' + host + '/' + encodeURIComponent(u) + ':' + md5 + '/manifest.json';
+                document.getElementById('stremioBtn').href = stremioUrl;
+                document.getElementById('result').style.display = 'block';
+                window.location.href = stremioUrl;
             });
         </script>
     </body>
@@ -235,46 +241,28 @@ app.get(['/', '/configure'], (req, res) => {
     `);
 });
 
-// Základní nekonfigurovaný manifest
 app.get('/manifest.json', (req, res) => {
     res.setHeader('Access-Control-Allow-Origin', '*');
-    res.json({
-        ...manifest,
-        behaviorHints: {
-            configurable: true,
-            configurationRequired: true
-        }
-    });
+    res.json({ ...manifest, behaviorHints: { configurable: true, configurationRequired: true } });
 });
 
-// Konfigurovaný manifest
 app.get('/:config/manifest.json', (req, res) => {
     res.setHeader('Access-Control-Allow-Origin', '*');
-    res.json({
-        ...manifest,
-        behaviorHints: {
-            configurable: true,
-            configurationRequired: false
-        }
-    });
+    res.json({ ...manifest, behaviorHints: { configurable: true, configurationRequired: false } });
 });
 
-// Titulkový Handler
 app.get('/:config/subtitles/:type/:id/:extra?.json', async (req, res) => {
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Content-Type', 'application/json');
 
     const creds = parseUserConfig(req.params.config);
-    if (!creds) {
-        return res.json({ subtitles: [] });
-    }
+    if (!creds) return res.json({ subtitles: [] });
 
     const { type, id } = req.params;
     let streamujId = null;
 
     try {
         if (id.includes('sosac')) {
-            // Rozdělení ID a epizodních údajů (např. "sosac2_1234:1:2" -> cleanId = "1234", season = 1, episode = 2)
             const idParts = id.split(':');
             const cleanId = idParts[0].replace(/^(sosac_m_|sosac2_|sosac_)/, '');
             const season = idParts[1] ? parseInt(idParts[1], 10) : null;
@@ -284,45 +272,48 @@ app.get('/:config/subtitles/:type/:id/:extra?.json', async (req, res) => {
 
             if (sosacData) {
                 if (type === 'movie') {
-                    streamujId = sosacData.l;
+                    streamujId = extractStreamujId(sosacData);
                 } else if (type === 'series' && season !== null && episode !== null) {
-                    // Vyhledání konkrétní epizody ve struktuře seriálu
-                    let targetEp = null;
+                    let epList = sosacData.episodes || [];
+                    if (!epList.length && sosacData.seasons) {
+                        const sObj = sosacData.seasons.find(s => (s.season === season || s.s === season || s.number === season));
+                        if (sObj) epList = sObj.episodes || [];
+                    }
 
-                    if (Array.isArray(sosacData.episodes)) {
-                        targetEp = sosacData.episodes.find(ep => 
-                            (ep.season === season || ep.s === season) && 
-                            (ep.episode === episode || ep.e === episode)
-                        );
-                    } else if (Array.isArray(sosacData.seasons)) {
-                        const seasonObj = sosacData.seasons.find(s => (s.season === season || s.s === season || s.number === season));
-                        if (seasonObj && Array.isArray(seasonObj.episodes)) {
-                            targetEp = seasonObj.episodes.find(ep => (ep.episode === episode || ep.e === episode || ep.number === episode));
-                        }
+                    let targetEp = epList.find(ep => 
+                        (ep.season === season || ep.s === season) && 
+                        (ep.episode === episode || ep.e === episode)
+                    );
+
+                    if (!targetEp) {
+                        try {
+                            const epRaw = await httpsGet(`https://${SOSAC_API_DOMAIN}/series/${cleanId}/episodes`, creds.username, creds.passMd5);
+                            if (!epRaw.trim().startsWith('<')) {
+                                const epData = JSON.parse(epRaw);
+                                const list = Array.isArray(epData) ? epData : (epData.items || epData.episodes || []);
+                                targetEp = list.find(ep => 
+                                    (ep.season === season || ep.s === season) && 
+                                    (ep.episode === episode || ep.e === episode)
+                                );
+                            }
+                        } catch (e) {}
                     }
 
                     if (targetEp) {
-                        streamujId = targetEp.l || targetEp.streamujId;
+                        streamujId = extractStreamujId(targetEp);
                     }
                 }
             }
         }
 
-        const authParam = `&pass=${creds.username}:::${creds.passMd5}`;
         let subtitles = [];
-
         if (streamujId) {
-            try {
-                const htmlText = await httpsGet(`https://www.streamuj.tv/video/${streamujId}`, creds.username, creds.passMd5);
-                subtitles = parseSubtitlesFromHtml(htmlText, authParam);
-            } catch (e) {
-                console.error('[Titulky] Chyba při stažení z Streamuj:', e.message);
-            }
+            subtitles = await fetchSubtitlesFromStreamuj(streamujId, creds.username, creds.passMd5, req.headers.host);
         }
 
         return res.json({ subtitles });
     } catch (e) {
-        console.error('[Titulky] Handler chyba:', e.message);
+        console.error('[Handler Error]:', e.message);
         return res.json({ subtitles: [] });
     }
 });
