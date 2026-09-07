@@ -400,6 +400,15 @@ app.get('/:config/subtitles/:type/:id/:extra?.json', async (req, res) => {
 
     const { type, id } = req.params;
     const extra = req.params.extra || '';
+    const params = new URLSearchParams(extra);
+
+const videoHash = params.get('videoHash');
+const videoSize = params.get('videoSize');
+const filename = params.get('filename');
+
+console.log(`[APPLE] videoHash = ${videoHash}`);
+console.log(`[APPLE] videoSize = ${videoSize}`);
+console.log(`[APPLE] filename = ${filename}`);
 
     console.log('');
     console.log('========================================');
