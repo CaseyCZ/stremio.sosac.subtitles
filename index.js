@@ -96,6 +96,11 @@ function parseUserConfig(configStr) {
 // ROUTY SERVERU
 // ==========================================
 
+// Přesměrování z konfigurace s vygenerovaným tokenem na hlavní čistou stránku
+app.get('/:config/configure', (req, res) => {
+    res.redirect('/');
+});
+
 // Webová konfigurační stránka (Landing Page)
 app.get(['/', '/configure'], (req, res) => {
     res.send(`
@@ -230,7 +235,7 @@ app.get(['/', '/configure'], (req, res) => {
     `);
 });
 
-// Základní nekonfigurovaný manifest (vyžaduje přesměrování na formulář)
+// Základní nekonfigurovaný manifest
 app.get('/manifest.json', (req, res) => {
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.json({
@@ -242,7 +247,7 @@ app.get('/manifest.json', (req, res) => {
     });
 });
 
-// Konfigurovaný manifest (přihlašovací údaje jsou už v URL, povolí tlačítko Instalovat)
+// Konfigurovaný manifest
 app.get('/:config/manifest.json', (req, res) => {
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.json({
