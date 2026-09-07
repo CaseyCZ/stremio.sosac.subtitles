@@ -110,23 +110,27 @@ app.get(['/', '/configure'], (req, res) => {
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>Sosáč Titulky - Stremio Addon</title>
         <style>
-            body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #0f172a; color: #f8fafc; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; }
-            .card { background: #1e293b; padding: 2.5rem; border-radius: 1rem; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.5); width: 100%; max-width: 400px; }
+            body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #0f172a; color: #f8fafc; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; padding: 1rem; box-sizing: border-box; }
+            .card { background: #1e293b; padding: 2rem; border-radius: 1rem; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.5); width: 100%; max-width: 420px; }
             h1 { font-size: 1.5rem; font-weight: 700; margin-bottom: 0.5rem; color: #38bdf8; text-align: center; }
             p { font-size: 0.875rem; color: #94a3b8; text-align: center; margin-bottom: 1.5rem; }
             .field { margin-bottom: 1.25rem; }
             label { display: block; font-size: 0.875rem; margin-bottom: 0.5rem; color: #cbd5e1; }
             input { width: 100%; padding: 0.75rem; border-radius: 0.5rem; border: 1px solid #334155; background: #0f172a; color: white; box-sizing: border-box; }
             input:focus { border-color: #38bdf8; outline: none; }
-            button { width: 100%; padding: 0.875rem; border-radius: 0.5rem; border: none; background: #0284c7; color: white; font-weight: 600; cursor: pointer; transition: background 0.2s; margin-top: 0.5rem; }
-            button:hover { background: #0369a1; }
+            button, .btn { width: 100%; padding: 0.875rem; border-radius: 0.5rem; border: none; background: #0284c7; color: white; font-weight: 600; cursor: pointer; transition: background 0.2s; margin-top: 0.5rem; text-align: center; text-decoration: none; display: block; box-sizing: border-box; }
+            button:hover, .btn:hover { background: #0369a1; }
+            .btn-secondary { background: #334155; margin-top: 0.5rem; }
+            .btn-secondary:hover { background: #475569; }
+            #result { display: none; margin-top: 1.5rem; padding-top: 1.5rem; border-top: 1px solid #334155; }
+            .success-msg { color: #4ade80; font-size: 0.8rem; text-align: center; margin-top: 0.5rem; display: none; }
         </style>
         <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
     </head>
     <body>
         <div class="card">
             <h1>Sosáč CZ Titulky</h1>
-            <p>Zadejte své přihlašovací údaje ze Sosáč.tv pro generování instalačního odkazu do Stremia.</p>
+            <p>Zadejte své přihlašovací údaje ze Sosáč.tv pro generování instalačního odkazu.</p>
             <form id="configForm">
                 <div class="field">
                     <label>Uživatelské jméno</label>
@@ -136,18 +140,55 @@ app.get(['/', '/configure'], (req, res) => {
                     <label>Heslo</label>
                     <input type="password" id="password" required placeholder="••••••••">
                 </div>
-                <button type="submit">Instalovat do Stremia</button>
+                <button type="submit">Vygenerovat odkaz</button>
             </form>
+
+            <div id="result">
+                <a id="stremioBtn" href="#" class="btn">Instalovat do Stremia</a>
+                <button id="copyBtn" type="button" class="btn btn-secondary">Kopírovat HTTPS odkaz</button>
+                <div id="copySuccess" class="success-msg">✓ Odkaz byl zkopírován do schránky! Můžeš ho vložit do vyhledávání ve Stremiu.</div>
+            </div>
         </div>
+
         <script>
+            let generatedHttpsUrl = '';
+
             document.getElementById('configForm').addEventListener('submit', function(e) {
                 e.preventDefault();
-                const u = document.getElementById('username').value.trim();
-                const p = document.getElementById('password').value;
-                const md5 = CryptoJS.MD5(p).toString();
-                
-                const installUrl = 'stremio://' + window.location.host + '/' + encodeURIComponent(u) + ':' + md5 + '/manifest.json';
-                window.location.href = installUrl;
+                try {
+                    const u = document.getElementById('username').value.trim();
+                    const p = document.getElementById('password').value;
+                    
+                    if (typeof CryptoJS === 'undefined') {
+                        alert('Chyba: Nepodařilo se načíst kryptografickou knihovnu. Zkontrolujte připojení.');
+                        return;
+                    }
+
+                    const md5 = CryptoJS.MD5(p).toString();
+                    const host = window.location.host;
+                    
+                    const stremioUrl = 'stremio://' + host + '/' + encodeURIComponent(u) + ':' + md5 + '/manifest.json';
+                    generatedHttpsUrl = 'https://' + host + '/' + encodeURIComponent(u) + ':' + md5 + '/manifest.json';
+
+                    document.getElementById('stremioBtn').href = stremioUrl;
+                    document.getElementById('result').style.display = 'block';
+
+                    // Pokus o přímé otevření
+                    window.location.href = stremioUrl;
+                } catch (err) {
+                    alert('Chyba: ' + err.message);
+                }
+            });
+
+            document.getElementById('copyBtn').addEventListener('click', function() {
+                if (!generatedHttpsUrl) return;
+                navigator.clipboard.writeText(generatedHttpsUrl).then(function() {
+                    const msg = document.getElementById('copySuccess');
+                    msg.style.display = 'block';
+                    setTimeout(() => msg.style.display = 'none', 4000);
+                }).catch(function() {
+                    prompt('Zkopírujte si odkaz ručně:', generatedHttpsUrl);
+                });
             });
         </script>
     </body>
