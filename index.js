@@ -9,7 +9,7 @@ const SOSAC_API_DOMAIN = 'kodi-api.sosac.to';
 
 const manifest = {
     id: 'org.stremio.sosac.streamuj.subtitles.public',
-    version: '2.0.0',
+    version: '2.1.0',
     name: 'Sosáč + Streamuj CZ Titulky',
     description: 'Komunitní doplněk pro české titulky ze Sosáč / Streamuj.tv',
     types: ['movie', 'series'],
@@ -270,16 +270,41 @@ app.get('/:config/subtitles/:type/:id/:extra?.json', async (req, res) => {
     }
 
     const { type, id } = req.params;
-    let queryTitle = '';
     let streamujId = null;
 
     try {
         if (id.includes('sosac')) {
-            const cleanId = id.replace(/^(sosac_m_|sosac2_)/, '').replace(/:(movies|series)$/, '');
+            // Rozdělení ID a epizodních údajů (např. "sosac2_1234:1:2" -> cleanId = "1234", season = 1, episode = 2)
+            const idParts = id.split(':');
+            const cleanId = idParts[0].replace(/^(sosac_m_|sosac2_|sosac_)/, '');
+            const season = idParts[1] ? parseInt(idParts[1], 10) : null;
+            const episode = idParts[2] ? parseInt(idParts[2], 10) : null;
+
             const sosacData = await fetchSosacDetailPublic(type, cleanId, creds.username, creds.passMd5);
+
             if (sosacData) {
-                queryTitle = (sosacData.n && sosacData.n.cs && sosacData.n.cs[0]) || sosacData.title_cz || sosacData.title;
-                streamujId = sosacData.l;
+                if (type === 'movie') {
+                    streamujId = sosacData.l;
+                } else if (type === 'series' && season !== null && episode !== null) {
+                    // Vyhledání konkrétní epizody ve struktuře seriálu
+                    let targetEp = null;
+
+                    if (Array.isArray(sosacData.episodes)) {
+                        targetEp = sosacData.episodes.find(ep => 
+                            (ep.season === season || ep.s === season) && 
+                            (ep.episode === episode || ep.e === episode)
+                        );
+                    } else if (Array.isArray(sosacData.seasons)) {
+                        const seasonObj = sosacData.seasons.find(s => (s.season === season || s.s === season || s.number === season));
+                        if (seasonObj && Array.isArray(seasonObj.episodes)) {
+                            targetEp = seasonObj.episodes.find(ep => (ep.episode === episode || ep.e === episode || ep.number === episode));
+                        }
+                    }
+
+                    if (targetEp) {
+                        streamujId = targetEp.l || targetEp.streamujId;
+                    }
+                }
             }
         }
 
