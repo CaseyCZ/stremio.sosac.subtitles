@@ -8,7 +8,7 @@ const SOSAC_API_DOMAIN = 'kodi-api.sosac.to';
 
 const manifest = {
     id: 'org.stremio.sosac.streamuj.subtitles.public',
-    version: '2.3.0',
+    version: '2.3.1',
     name: 'Sosáč + Streamuj CZ Titulky',
     description: 'Komunitní doplněk pro české titulky ze Sosáč / Streamuj.tv',
     types: ['movie', 'series'],
@@ -39,7 +39,7 @@ function httpsGet(url, username, passMd5, customHeaders = {}) {
                 if (res.statusCode >= 200 && res.statusCode < 400) {
                     resolve(data);
                 } else {
-                    reject(new Error(`HTTP Status ${res.statusCode}`));
+                    reject(new Error(`HTTP Status ${res.statusCode} na adrese ${url}`));
                 }
             });
         });
@@ -52,17 +52,29 @@ function httpsGet(url, username, passMd5, customHeaders = {}) {
     });
 }
 
-// Extrakce Streamuj ID z datových struktur
+// Extrakce přesného ID z datových struktur (upraveno pro odstranění nadbytečných URL částí)
 function extractStreamujId(ep) {
+    let rawUrl = null;
     if (!ep) return null;
-    if (typeof ep === 'string') return ep;
-    if (ep.l) return ep.l;
-    if (ep.link) return ep.link;
-    if (ep.streamujId) return ep.streamujId;
-    if (Array.isArray(ep.mirrors) && ep.mirrors.length > 0) {
-        return ep.mirrors[0].l || ep.mirrors[0].link || ep.mirrors[0].id;
+    if (typeof ep === 'string') rawUrl = ep;
+    else if (ep.streamujId) rawUrl = ep.streamujId;
+    else if (ep.l) rawUrl = ep.l;
+    else if (ep.link) rawUrl = ep.link;
+    else if (ep.url) rawUrl = ep.url;
+    else if (Array.isArray(ep.mirrors) && ep.mirrors.length > 0) {
+        rawUrl = ep.mirrors[0].l || ep.mirrors[0].link || ep.mirrors[0].id || ep.mirrors[0].url;
     }
-    return null;
+
+    if (!rawUrl) return null;
+
+    // Pokud už odkaz obsahuje celou URL, ořízneme ho pouze na ID (např. 6831s28706a6e1620161)
+    const videoMatch = rawUrl.match(/video\/([a-zA-Z0-9]+)/);
+    if (videoMatch) return videoMatch[1];
+
+    // Pokud je to rovnou jen alfanumerické ID
+    if (/^[a-zA-Z0-9]+$/.test(rawUrl)) return rawUrl;
+
+    return rawUrl;
 }
 
 // Získání detailu ze Sosáče
@@ -88,7 +100,7 @@ async function fetchSosacDetailPublic(type, id, username, passMd5) {
     }
 }
 
-// Přesná extrakce titulků z jw7_plugin konfigurace
+// Přesná extrakce titulků z HTML webového přehrávače
 async function fetchSubtitlesFromStreamuj(streamujId, username, passMd5, reqHost) {
     const subtitles = [];
     const addedUrls = new Set();
@@ -108,7 +120,6 @@ async function fetchSubtitlesFromStreamuj(streamujId, username, passMd5, reqHost
             if (langLower.includes('sk') || langLower.includes('slovensk')) langCode = 'sk';
             if (langLower.includes('en') || langLower.includes('anglick')) langCode = 'en';
 
-            // Přesměrování stahování přes interní proxy s autorizací
             const proxyUrl = `https://${reqHost}/sub-proxy?url=${encodeURIComponent(cleanUrl)}&u=${encodeURIComponent(username)}&p=${encodeURIComponent(passMd5)}`;
 
             subtitles.push({
@@ -121,10 +132,11 @@ async function fetchSubtitlesFromStreamuj(streamujId, username, passMd5, reqHost
     };
 
     try {
-        const videoUrl = `https://www.streamuj.tv/video/${streamujId}`;
+        // Vždy sestavíme přesnou URL webového přehrávače, který obsahuje titulky
+        const videoUrl = streamujId.startsWith('http') ? streamujId : `https://www.streamuj.tv/video/${streamujId}`;
         const htmlText = await httpsGet(videoUrl, username, passMd5);
 
-        // Parsování atributu sub0 / sub1 z objektu jwplayer pluginu
+        // Parsování atributu sub0 z JWPlayer objektu
         const subRegex = /sub\d+\s*:\s*["']([^"']+)["']/gi;
         let match;
         while ((match = subRegex.exec(htmlText)) !== null) {
@@ -137,7 +149,7 @@ async function fetchSubtitlesFromStreamuj(streamujId, username, passMd5, reqHost
             }
         }
 
-        // Záložní hledání obecných VTT/SRT souborů
+        // Záložní hledání přes parametr ?streamuj=subtitles
         if (subtitles.length === 0) {
             const fallbackRegex = /(https?:\/\/[^"'\s]+\?streamuj=subtitles[^"'\s]*)/gi;
             while ((match = fallbackRegex.exec(htmlText)) !== null) {
@@ -162,7 +174,6 @@ function parseUserConfig(configStr) {
 // ROUTY SERVERU
 // ==========================================
 
-// Proxy pro bezpečné stažení titulků se zachováním autorizační cookie
 app.get('/sub-proxy', async (req, res) => {
     const { url, u, p } = req.query;
     if (!url || !u || !p) return res.status(400).send('Chybí parametry.');
@@ -285,6 +296,7 @@ app.get('/:config/subtitles/:type/:id/:extra?.json', async (req, res) => {
                         (ep.episode === episode || ep.e === episode)
                     );
 
+                    // Pokud epizoda není v seznamu seriálu, dotáhneme seznam epizod zvlášť
                     if (!targetEp) {
                         try {
                             const epRaw = await httpsGet(`https://${SOSAC_API_DOMAIN}/series/${cleanId}/episodes`, creds.username, creds.passMd5);
@@ -301,6 +313,17 @@ app.get('/:config/subtitles/:type/:id/:extra?.json', async (req, res) => {
 
                     if (targetEp) {
                         streamujId = extractStreamujId(targetEp);
+                        
+                        // Pojistka: Pokud jsme stále nenašli link, ale máme ID epizody, dotáhneme její detail ze Sosáče
+                        if (!streamujId && targetEp.id) {
+                            try {
+                                const epDetailRaw = await httpsGet(`https://${SOSAC_API_DOMAIN}/episodes/${targetEp.id}`, creds.username, creds.passMd5);
+                                const epDetail = JSON.parse(epDetailRaw);
+                                streamujId = extractStreamujId(epDetail.item || epDetail.episode || epDetail);
+                            } catch (e) {
+                                console.error('[Získání detailu epizody selhalo]:', e.message);
+                            }
+                        }
                     }
                 }
             }
