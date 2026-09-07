@@ -8,7 +8,7 @@ const SOSAC_API_DOMAIN = 'kodi-api.sosac.to';
 
 const manifest = {
     id: 'org.stremio.sosac.streamuj.subtitles.public',
-    version: '2.6.1',
+    version: '2.6.2',
     name: 'Sosáč + Streamuj CZ Titulky',
     description: 'Komunitní doplněk pro české titulky ze Sosáč / Streamuj.tv',
     types: ['movie', 'series'],
@@ -66,7 +66,7 @@ function extractAllStreamujIds(ep) {
 
         if (str.includes('streamuj.tv')) {
             urls.add(str);
-            // Opraveno: Zachytí /video/ i /vid/ v přímých odkazech na soubory
+            // Zachytí /video/ i /vid/ v přímých odkazech na soubory
             let m = str.match(/(?:video|vid)\/([a-zA-Z0-9]{10,35})/);
             if (m) ids.add(m[1]);
         }
@@ -94,10 +94,6 @@ function extractAllStreamujIds(ep) {
             Object.values(obj).forEach(val => recursiveSearch(val));
         }
     };
-
-    recursiveSearch(ep);
-    return { ids: Array.from(ids), urls: Array.from(urls), directSubs: Array.from(directSubs) };
-}
 
     recursiveSearch(ep);
     return { ids: Array.from(ids), urls: Array.from(urls), directSubs: Array.from(directSubs) };
@@ -275,58 +271,56 @@ app.get('/:config/subtitles/:type/:id/:extra?.json', async (req, res) => {
     let targetData = null;
 
     try {
-        if (id.includes('sosac') || !id.startsWith('tt')) {
-            const idParts = id.split(':');
-            const cleanId = idParts[0].replace(/^(sosac_m_|sosac2_|sosac_)/, '');
-            const season = idParts[1] ? parseInt(idParts[1], 10) : null;
-            const episode = idParts[2] ? parseInt(idParts[2], 10) : null;
+        const idParts = id.split(':');
+        const cleanId = idParts[0].replace(/^(sosac_m_|sosac2_|sosac_)/, '');
+        const season = idParts[1] ? parseInt(idParts[1], 10) : null;
+        const episode = idParts[2] ? parseInt(idParts[2], 10) : null;
 
-            if (type === 'movie') {
-                const endpoint = `https://${SOSAC_API_DOMAIN}/movies/${cleanId}`;
-                const rawData = await httpsGet(endpoint, creds.username, creds.passMd5, { 
-                    'Referer': 'https://sosac.tv/', 'Origin': 'https://sosac.tv', 'Accept': 'application/json' 
-                });
-                if (!rawData.trim().startsWith('<')) {
-                    const data = JSON.parse(rawData);
-                    targetData = data.item || data.movie || data;
-                }
-            } else if (type === 'series') {
-                let epFound = false;
+        if (type === 'movie') {
+            const endpoint = `https://${SOSAC_API_DOMAIN}/movies/${cleanId}`;
+            const rawData = await httpsGet(endpoint, creds.username, creds.passMd5, { 
+                'Referer': 'https://sosac.tv/', 'Origin': 'https://sosac.tv', 'Accept': 'application/json' 
+            });
+            if (!rawData.trim().startsWith('<')) {
+                const data = JSON.parse(rawData);
+                targetData = data.item || data.movie || data;
+            }
+        } else if (type === 'series') {
+            let epFound = false;
 
-                // 1. Pokus: Přímý dotaz na epizodní endpoint (pokud ID patří přímo epizodě)
-                if (season !== null && episode !== null) {
-                    try {
-                        const epUrl = `https://${SOSAC_API_DOMAIN}/episodes/${cleanId}`;
-                        const rawEp = await httpsGet(epUrl, creds.username, creds.passMd5);
-                        if (!rawEp.trim().startsWith('<')) {
-                            const parsedEp = JSON.parse(rawEp);
-                            const epObj = parsedEp.item || parsedEp.episode || parsedEp;
-                            if (epObj && (epObj.season === season || epObj.s === season) && (epObj.episode === episode || epObj.e === episode)) {
-                                targetData = epObj;
-                                epFound = true;
-                            }
+            // 1. Pokus: Přímý dotaz na epizodní endpoint
+            if (season !== null && episode !== null) {
+                try {
+                    const epUrl = `https://${SOSAC_API_DOMAIN}/episodes/${cleanId}`;
+                    const rawEp = await httpsGet(epUrl, creds.username, creds.passMd5);
+                    if (!rawEp.trim().startsWith('<')) {
+                        const parsedEp = JSON.parse(rawEp);
+                        const epObj = parsedEp.item || parsedEp.episode || parsedEp;
+                        if (epObj && (epObj.season === season || epObj.s === season) && (epObj.episode === episode || epObj.e === episode)) {
+                            targetData = epObj;
+                            epFound = true;
                         }
-                    } catch (e) {}
-                }
+                    }
+                } catch (e) {}
+            }
 
-                // 2. Pokus: Stažení seznamu epizod pro daný seriál (zabrání chybě 404 na /series/{id})
-                if (!epFound) {
-                    try {
-                        const seriesUrl = `https://${SOSAC_API_DOMAIN}/series/${cleanId}/episodes`;
-                        const rawList = await httpsGet(seriesUrl, creds.username, creds.passMd5);
-                        if (!rawList.trim().startsWith('<')) {
-                            const epData = JSON.parse(rawList);
-                            const list = Array.isArray(epData) ? epData : (epData.items || epData.episodes || []);
-                            const targetEp = list.find(ep => 
-                                (ep.season === season || ep.s === season || ep.number === season) && 
-                                (ep.episode === episode || ep.e === episode || ep.ep === episode)
-                            );
-                            if (targetEp) {
-                                targetData = targetEp;
-                            }
+            // 2. Pokus: Stažení seznamu epizod pro daný seriál
+            if (!epFound) {
+                try {
+                    const seriesUrl = `https://${SOSAC_API_DOMAIN}/series/${cleanId}/episodes`;
+                    const rawList = await httpsGet(seriesUrl, creds.username, creds.passMd5);
+                    if (!rawList.trim().startsWith('<')) {
+                        const epData = JSON.parse(rawList);
+                        const list = Array.isArray(epData) ? epData : (epData.items || epData.episodes || []);
+                        const targetEp = list.find(ep => 
+                            (ep.season === season || ep.s === season || ep.number === season) && 
+                            (ep.episode === episode || ep.e === episode || ep.ep === episode)
+                        );
+                        if (targetEp) {
+                            targetData = targetEp;
                         }
-                    } catch (e) {}
-                }
+                    }
+                } catch (e) {}
             }
         }
 
@@ -350,7 +344,7 @@ app.get('/:config/subtitles/:type/:id/:extra?.json', async (req, res) => {
                 });
             }
 
-            // 2. Skenování ID z přehrávačů (Streamuj.tv) pro zjištění sub0
+            // 2. Skenování ID z přehrávačů (Streamuj.tv)
             if (subtitles.length === 0 && extracted.ids.length > 0) {
                 const uniqueIds = Array.from(new Set(extracted.ids)).slice(0, 8);
                 const fetchPromises = uniqueIds.map(sid => fetchSubtitlesFromStreamuj(sid, creds.username, creds.passMd5, req.headers.host));
