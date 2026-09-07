@@ -66,7 +66,8 @@ function extractAllStreamujIds(ep) {
 
         if (str.includes('streamuj.tv')) {
             urls.add(str);
-            let m = str.match(/video\/([a-zA-Z0-9]{10,35})/);
+            // Opraveno: Zachytí /video/ i /vid/ v přímých odkazech na soubory
+            let m = str.match(/(?:video|vid)\/([a-zA-Z0-9]{10,35})/);
             if (m) ids.add(m[1]);
         }
 
@@ -93,6 +94,10 @@ function extractAllStreamujIds(ep) {
             Object.values(obj).forEach(val => recursiveSearch(val));
         }
     };
+
+    recursiveSearch(ep);
+    return { ids: Array.from(ids), urls: Array.from(urls), directSubs: Array.from(directSubs) };
+}
 
     recursiveSearch(ep);
     return { ids: Array.from(ids), urls: Array.from(urls), directSubs: Array.from(directSubs) };
