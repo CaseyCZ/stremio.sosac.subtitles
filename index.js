@@ -8,7 +8,7 @@ const SOSAC_API_DOMAIN = 'kodi-api.sosac.to';
 
 const manifest = {
     id: 'org.stremio.sosac.streamuj.subtitles.public',
-    version: '2.6.6',
+    version: '2.6.7',
     name: 'Sosáč + Streamuj CZ Titulky',
     description: 'Komunitní doplněk pro české titulky ze Sosáč / Streamuj.tv',
     types: ['movie', 'series'],
@@ -131,71 +131,49 @@ function extractAllStreamujIds(ep) {
     return { ids: Array.from(ids), directSubs: Array.from(directSubs), mp4Urls: Array.from(mp4Urls) };
 }
 
-async function fetchSubtitlesFromStreamuj(streamujId, username, passMd5, reqHost) {
+async function fetchSubtitlesFromStreamuj(videoId, username, passMd5, reqHost) {
     const subtitles = [];
-    const addedUrls = new Set();
-
-    const addSub = (rawUrl, label = 'Čeština') => {
-        if (!rawUrl) return;
-        let cleanUrl = rawUrl.trim().replace(/^["']|["']$/g, '');
-        if (!cleanUrl.startsWith('http')) {
-            cleanUrl = cleanUrl.startsWith('/') ? `https://www.streamuj.tv${cleanUrl}` : `https://www.streamuj.tv/${cleanUrl}`;
-        }
-        
-        if (!addedUrls.has(cleanUrl)) {
-            addedUrls.add(cleanUrl);
-            
-            const langLower = label.toLowerCase();
-            let langCode = 'cs';
-            if (langLower.includes('sk') || langLower.includes('slovensk')) langCode = 'sk';
-            if (langLower.includes('en') || langLower.includes('anglick')) langCode = 'en';
-
-            const proxyUrl = `https://${reqHost}/sub-proxy?url=${encodeURIComponent(cleanUrl)}&u=${encodeURIComponent(username)}&p=${encodeURIComponent(passMd5)}`;
-
-            subtitles.push({
-                id: `streamuj_${streamujId}_sub_${subtitles.length}`,
-                url: proxyUrl,
-                lang: langCode,
-                file_name: `Streamuj.tv - ${label}`
-            });
-        }
-    };
-
     try {
-        const playerUrl = streamujId.startsWith('http') ? streamujId : `https://www.streamuj.tv/video/${streamujId}`;
-        const htmlText = await httpsGet(playerUrl, username, passMd5);
+        const remoteUrl = `https://www.streamuj.tv/video/${videoId}?remote=1`;
+        const html = await httpsGet(remoteUrl, username, passMd5);
+        
+        if (!html) return subtitles;
 
-        const subRegex = /sub\d+\s*:\s*["']([^"']+)["']/gi;
-        let match;
-        while ((match = subRegex.exec(htmlText)) !== null) {
-            const val = match[1];
-            if (val.includes('>')) {
-                const [label, subUrl] = val.split('>');
-                addSub(subUrl, label);
-            } else if (val.startsWith('http') || val.startsWith('/')) {
-                addSub(val, 'Čeština');
-            }
-        }
+        const subMatch = html.match(/sub0\s*:\s*"([^"]+)"/i);
+        if (subMatch && subMatch[1]) {
+            const parts = subMatch[1].split('>');
+            if (parts.length >= 2) {
+                const subLang = parts[0].trim();
+                const rawSubUrl = parts[1].trim();
+                
+                const proxyUrl = `https://${reqHost}/sub-proxy?url=${encodeURIComponent(rawSubUrl)}&u=${encodeURIComponent(username)}&p=${encodeURIComponent(passMd5)}`;
 
-        const generalSubRegex = /(?:src|href|url)\s*[:=]\s*["']([^"']+\.(?:srt|vtt)|[^"']*sub[^"']*)["']/gi;
-        while ((match = generalSubRegex.exec(htmlText)) !== null) {
-            const foundUrl = match[1];
-            if (!foundUrl.includes('.js') && !foundUrl.includes('.css') && !foundUrl.includes('.png') && !foundUrl.includes('.jpg')) {
-                addSub(foundUrl, 'Čeština (Auto)');
+                subtitles.push({
+                    id: `streamuj_${videoId}`,
+                    url: proxyUrl,
+                    lang: 'cs',
+                    file_name: `Streamuj.tv - ${subLang}`
+                });
             }
         }
 
         if (subtitles.length === 0) {
             const fallbackRegex = /(https?:\/\/[^"'\s]+\?streamuj=subtitles[^"'\s]*)/gi;
-            while ((match = fallbackRegex.exec(htmlText)) !== null) {
-                addSub(match[1], 'Čeština');
+            let match;
+            while ((match = fallbackRegex.exec(html)) !== null) {
+                const cleanUrl = match[1].trim();
+                const proxyUrl = `https://${reqHost}/sub-proxy?url=${encodeURIComponent(cleanUrl)}&u=${encodeURIComponent(username)}&p=${encodeURIComponent(passMd5)}`;
+                subtitles.push({
+                    id: `streamuj_fb_${videoId}`,
+                    url: proxyUrl,
+                    lang: 'cs',
+                    file_name: `Streamuj.tv - České titulky`
+                });
             }
         }
-
-    } catch (err) {
-        console.log(`[Bez titulků] ID: ${streamujId}`);
+    } catch (e) {
+        console.error("Chyba při stahování titulků ze Streamuj.tv:", e);
     }
-
     return subtitles;
 }
 
@@ -417,7 +395,7 @@ app.get('/:config/subtitles/:type/:id/:extra?.json', async (req, res) => {
                 });
             }
 
-            // 2. Kontrola sidecar titulků na CDN vedle .mp4 souborů (klíčové pro seriály)
+            // 2. Kontrola sidecar titulků na CDN vedle .mp4 souborů
             if (subtitles.length === 0 && extracted.mp4Urls.length > 0) {
                 for (const mp4Url of extracted.mp4Urls) {
                     const cdnSubs = await fetchSubtitlesFromMp4Url(mp4Url, creds.username, creds.passMd5, req.headers.host);
@@ -428,7 +406,7 @@ app.get('/:config/subtitles/:type/:id/:extra?.json', async (req, res) => {
                 }
             }
 
-            // 3. Skenování ID a dotaz do online webového přehrávače Streamuj.tv
+            // 3. Skenování ID a dotaz do online webového přehrávače Streamuj.tv (využívá ?remote=1)
             if (subtitles.length === 0 && extracted.ids.length > 0) {
                 const uniqueIds = Array.from(new Set(extracted.ids)).slice(0, 8);
                 const fetchPromises = uniqueIds.map(sid => fetchSubtitlesFromStreamuj(sid, creds.username, creds.passMd5, req.headers.host));
