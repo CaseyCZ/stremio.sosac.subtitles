@@ -116,8 +116,12 @@ app.get(['/', '/configure'], (req, res) => {
             p { font-size: 0.875rem; color: #94a3b8; text-align: center; margin-bottom: 1.5rem; }
             .field { margin-bottom: 1.25rem; }
             label { display: block; font-size: 0.875rem; margin-bottom: 0.5rem; color: #cbd5e1; }
+            .password-wrapper { position: relative; display: flex; align-items: center; }
             input { width: 100%; padding: 0.75rem; border-radius: 0.5rem; border: 1px solid #334155; background: #0f172a; color: white; box-sizing: border-box; }
             input:focus { border-color: #38bdf8; outline: none; }
+            .password-wrapper input { padding-right: 4.5rem; }
+            .toggle-pass { position: absolute; right: 0.5rem; background: transparent; border: none; color: #38bdf8; font-size: 0.8rem; font-weight: 600; cursor: pointer; padding: 0.4rem; margin: 0; width: auto; }
+            .toggle-pass:hover { color: #7dd3fc; background: transparent; }
             button, .btn { width: 100%; padding: 0.875rem; border-radius: 0.5rem; border: none; background: #0284c7; color: white; font-weight: 600; cursor: pointer; transition: background 0.2s; margin-top: 0.5rem; text-align: center; text-decoration: none; display: block; box-sizing: border-box; }
             button:hover, .btn:hover { background: #0369a1; }
             .btn-secondary { background: #334155; margin-top: 0.5rem; }
@@ -134,12 +138,15 @@ app.get(['/', '/configure'], (req, res) => {
             <p>Zadejte své přihlašovací údaje ze Sosáč.tv pro generování instalačního odkazu.</p>
             <form id="configForm">
                 <div class="field">
-                    <label>Uživatelské jméno</label>
+                    <label for="username">Uživatelské jméno</label>
                     <input type="text" id="username" required placeholder="TvojeJmeno">
                 </div>
                 <div class="field">
-                    <label>Heslo</label>
-                    <input type="password" id="password" required placeholder="••••••••">
+                    <label for="password">Heslo</label>
+                    <div class="password-wrapper">
+                        <input type="password" id="password" required placeholder="••••••••">
+                        <button type="button" id="togglePassBtn" class="toggle-pass">Zobrazit</button>
+                    </div>
                 </div>
                 <button type="submit">Vygenerovat odkaz</button>
             </form>
@@ -159,6 +166,27 @@ app.get(['/', '/configure'], (req, res) => {
         <script>
             let generatedHttpsUrl = '';
 
+            // Načtení uložených údajů z prohlížeče po otevření stránky
+            document.addEventListener('DOMContentLoaded', function() {
+                const savedUser = localStorage.getItem('sosac_user');
+                const savedPass = localStorage.getItem('sosac_pass');
+                if (savedUser) document.getElementById('username').value = savedUser;
+                if (savedPass) document.getElementById('password').value = savedPass;
+            });
+
+            // Přepínání zobrazení hesla
+            document.getElementById('togglePassBtn').addEventListener('click', function() {
+                const passInput = document.getElementById('password');
+                if (passInput.type === 'password') {
+                    passInput.type = 'text';
+                    this.textContent = 'Skrýt';
+                } else {
+                    passInput.type = 'password';
+                    this.textContent = 'Zobrazit';
+                }
+            });
+
+            // Odeslání formuláře
             document.getElementById('configForm').addEventListener('submit', function(e) {
                 e.preventDefault();
                 try {
@@ -169,6 +197,10 @@ app.get(['/', '/configure'], (req, res) => {
                         alert('Chyba: Nepodařilo se načíst kryptografickou knihovnu. Zkontrolujte připojení.');
                         return;
                     }
+
+                    // Uložení údajů do paměti prohlížeče
+                    localStorage.setItem('sosac_user', u);
+                    localStorage.setItem('sosac_pass', p);
 
                     const md5 = CryptoJS.MD5(p).toString();
                     const host = window.location.host;
@@ -188,6 +220,7 @@ app.get(['/', '/configure'], (req, res) => {
                 }
             });
 
+            // Kopírování HTTPS odkazu
             document.getElementById('copyBtn').addEventListener('click', function() {
                 if (!generatedHttpsUrl) return;
                 const input = document.getElementById('httpsInput');
