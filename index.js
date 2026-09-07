@@ -111,58 +111,6 @@ app.get(['/', '/configure'], (req, res) => {
         <title>Sosáč Titulky - Stremio Addon</title>
         <style>
             body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #0f172a; color: #f8fafc; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; padding: 1rem; box-sizing: border-box; }
-            .card { background: #1e293b; padding: 2rem; border-radius: 1rem; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.5); width: 100%; max-width: 420px; }
-            h1 { font-size: 1.5rem; font-weight: 700; margin-bottom: 0.5rem; color: #38bdf8; text-align: center; }
-            p { font-size: 0.875rem; color: #94a3b8; text-align: center; margin-bottom: 1.5rem; }
-            .field { margin-bottom: 1.25rem; }
-            label { display: block; font-size: 0.875rem; margin-bottom: 0.5rem; color: #cbd5e1; }
-            input { width: 100%; padding: 0.75rem; border-radius: 0.5rem; border: 1px solid #334155; background: #0f172a; color: white; box-sizing: border-box; }
-            input:focus { border-color: #38bdf8; outline: none; }
-            button, .btn { width: 100%; padding: 0.875rem; border-radius: 0.5rem; border: none; background: #0284c7; color: white; font-weight: 600; cursor: pointer; transition: background 0.2s; margin-top: 0.5rem; text-align: center; text-decoration: none; display: block; box-sizing: border-box; }
-            button:hover, .btn:hover { background: #0369a1; }
-            .btn-secondary { background: #334155; margin-top: 0.5rem; }
-            .btn-secondary:hover { background: #475569; }
-            #result { display: none; margin-top: 1.5rem; padding-top: 1.5rem; border-top: 1px solid #334155; }
-            .success-msg { color: #4ade80; font-size: 0.8rem; text-align: center; margin-top: 0.5rem; display: none; }
-        </style>
-        <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
-    </head>
-    <body>
-        <div class="card">
-            <h1>Sosáč CZ Titulky</h1>
-            <p>Zadejte své přihlašovací údaje ze Sosáč.tv pro generování instalačního odkazu.</p>
-            <form id="configForm">
-                <div class="field">
-                    <label>Uživatelské jméno</label>
-                    <input type="text" id="username" required placeholder="TvojeJmeno">
-                </div>
-                <div class="field">
-                    <label>Heslo</label>
-                    <input type="password" id="password" required placeholder="••••••••">
-                </div>
-                <button type="submit">Vygenerovat odkaz</button>
-            </form>
-
-            <div id="result">
-                <a id="stremioBtn" href="#" class="btn">Instalovat do Stremia</a>
-                <button id="copyBtn" type="button" class="btn btn-secondary">Kopírovat HTTPS odkaz</button>
-                <div id="copySuccess" class="success-msg">✓ Odkaz byl zkopírován do schránky! Můžeš ho vložit do vyhledávání ve Stremiu.</div>
-            </div>
-        </div>
-
-        <script>
-            let generatedHttpsUrl = '';
-
-app.get(['/', '/configure'], (req, res) => {
-    res.send(`
-    <!DOCTYPE html>
-    <html lang="cs">
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Sosáč Titulky - Stremio Addon</title>
-        <style>
-            body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #0f172a; color: #f8fafc; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; padding: 1rem; box-sizing: border-box; }
             .card { background: #1e293b; padding: 2rem; border-radius: 1rem; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.5); width: 100%; max-width: 440px; }
             h1 { font-size: 1.5rem; font-weight: 700; margin-bottom: 0.5rem; color: #38bdf8; text-align: center; }
             p { font-size: 0.875rem; color: #94a3b8; text-align: center; margin-bottom: 1.5rem; }
@@ -203,7 +151,7 @@ app.get(['/', '/configure'], (req, res) => {
                     <label style="margin-top:0.75rem;">Nebo zkopírujte HTTPS URL do vyhledávání ve Stremiu:</label>
                     <input type="text" id="httpsInput" readonly onclick="this.select()" style="margin-bottom:0.5rem;">
                     <button id="copyBtn" type="button" class="btn btn-secondary">Kopírovat HTTPS odkaz</button>
-                    <div id="copySuccess" class="success-msg">✓ Odkaz byl zkopírován! Vložte jej do vyhlašování doplňků ve Stremiu.</div>
+                    <div id="copySuccess" class="success-msg">✓ Odkaz byl zkopírován! Vložte jej do vyhledávání doplňků ve Stremiu.</div>
                 </div>
             </div>
         </div>
@@ -232,7 +180,6 @@ app.get(['/', '/configure'], (req, res) => {
                     document.getElementById('httpsInput').value = generatedHttpsUrl;
                     document.getElementById('result').style.display = 'block';
 
-                    // Pokus o přímé otevření s krátkým zpožděním, aby se stihlo vykreslit UI
                     setTimeout(() => {
                         window.location.href = stremioUrl;
                     }, 150);
