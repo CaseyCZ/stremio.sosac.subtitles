@@ -15,11 +15,7 @@ const manifest = {
     types: ['movie', 'series'],
     idPrefixes: ['tt', 'sosac', 'sosac2', 'tmdb'],
     resources: ['subtitles'],
-    catalogs: [],
-    behaviorHints: {
-        configurable: true,
-        configurationRequired: true
-    }
+    catalogs: []
 };
 
 // Pomocná HTTPS funkce předávající dynamické cookies
@@ -152,7 +148,7 @@ app.get(['/', '/configure'], (req, res) => {
             </form>
 
             <div id="result">
-                <a id="stremioBtn" href="#" class="btn">Otevřít v aplikaci Stremio</a>
+                <a id="stremioBtn" href="#" class="btn">Instalovat do Stremio</a>
                 
                 <div class="url-box">
                     <label style="margin-top:0.75rem;">Nebo zkopírujte HTTPS URL do vyhledávání ve Stremiu:</label>
@@ -166,7 +162,6 @@ app.get(['/', '/configure'], (req, res) => {
         <script>
             let generatedHttpsUrl = '';
 
-            // Načtení uložených údajů z prohlížeče po otevření stránky
             document.addEventListener('DOMContentLoaded', function() {
                 const savedUser = localStorage.getItem('sosac_user');
                 const savedPass = localStorage.getItem('sosac_pass');
@@ -174,7 +169,6 @@ app.get(['/', '/configure'], (req, res) => {
                 if (savedPass) document.getElementById('password').value = savedPass;
             });
 
-            // Přepínání zobrazení hesla
             document.getElementById('togglePassBtn').addEventListener('click', function() {
                 const passInput = document.getElementById('password');
                 if (passInput.type === 'password') {
@@ -186,7 +180,6 @@ app.get(['/', '/configure'], (req, res) => {
                 }
             });
 
-            // Odeslání formuláře
             document.getElementById('configForm').addEventListener('submit', function(e) {
                 e.preventDefault();
                 try {
@@ -198,7 +191,6 @@ app.get(['/', '/configure'], (req, res) => {
                         return;
                     }
 
-                    // Uložení údajů do paměti prohlížeče
                     localStorage.setItem('sosac_user', u);
                     localStorage.setItem('sosac_pass', p);
 
@@ -220,7 +212,6 @@ app.get(['/', '/configure'], (req, res) => {
                 }
             });
 
-            // Kopírování HTTPS odkazu
             document.getElementById('copyBtn').addEventListener('click', function() {
                 if (!generatedHttpsUrl) return;
                 const input = document.getElementById('httpsInput');
@@ -239,16 +230,28 @@ app.get(['/', '/configure'], (req, res) => {
     `);
 });
 
-// Základní manifest
+// Základní nekonfigurovaný manifest (vyžaduje přesměrování na formulář)
 app.get('/manifest.json', (req, res) => {
     res.setHeader('Access-Control-Allow-Origin', '*');
-    res.json(manifest);
+    res.json({
+        ...manifest,
+        behaviorHints: {
+            configurable: true,
+            configurationRequired: true
+        }
+    });
 });
 
-// Konfigurovaný manifest
+// Konfigurovaný manifest (přihlašovací údaje jsou už v URL, povolí tlačítko Instalovat)
 app.get('/:config/manifest.json', (req, res) => {
     res.setHeader('Access-Control-Allow-Origin', '*');
-    res.json(manifest);
+    res.json({
+        ...manifest,
+        behaviorHints: {
+            configurable: true,
+            configurationRequired: false
+        }
+    });
 });
 
 // Titulkový Handler
