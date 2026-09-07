@@ -8,7 +8,7 @@ const SOSAC_API_DOMAIN = 'kodi-api.sosac.to';
 
 const manifest = {
     id: 'org.stremio.sosac.streamuj.subtitles.public',
-    version: '2.3.1',
+    version: '2.4.0',
     name: 'Sosáč + Streamuj CZ Titulky',
     description: 'Komunitní doplněk pro české titulky ze Sosáč / Streamuj.tv',
     types: ['movie', 'series'],
@@ -52,29 +52,48 @@ function httpsGet(url, username, passMd5, customHeaders = {}) {
     });
 }
 
-// Extrakce přesného ID z datových struktur (upraveno pro odstranění nadbytečných URL částí)
-function extractStreamujId(ep) {
-    let rawUrl = null;
-    if (!ep) return null;
-    if (typeof ep === 'string') rawUrl = ep;
-    else if (ep.streamujId) rawUrl = ep.streamujId;
-    else if (ep.l) rawUrl = ep.l;
-    else if (ep.link) rawUrl = ep.link;
-    else if (ep.url) rawUrl = ep.url;
-    else if (Array.isArray(ep.mirrors) && ep.mirrors.length > 0) {
-        rawUrl = ep.mirrors[0].l || ep.mirrors[0].link || ep.mirrors[0].id || ep.mirrors[0].url;
+// POSBÍRÁ VŠECHNA DOSTUPNÁ ID ZE VŠECH MIRRORŮ (Abychom našli ten správný s titulky)
+function extractAllStreamujIds(ep) {
+    const ids = new Set();
+
+    const extract = (rawUrl) => {
+        if (!rawUrl || typeof rawUrl !== 'string') return;
+        
+        // 1. Zkusíme přesnou cestu /video/ID
+        let match = rawUrl.match(/video\/([a-zA-Z0-9]{15,30})/);
+        if (match) { ids.add(match[1]); return; }
+
+        // 2. Zkusíme ID z konce .mp4 souboru (ignoruje koncovky _sd, _hd apod.)
+        match = rawUrl.match(/\/([a-zA-Z0-9]{15,30})(?:_sd|_hd|_720p|_1080p|_480p)?\.mp4/i);
+        if (match) { ids.add(match[1]); return; }
+
+        // 3. Je to čisté alfanumerické ID jako takové
+        if (/^[a-zA-Z0-9]{15,30}$/.test(rawUrl)) { ids.add(rawUrl); return; }
+
+        // 4. Poslední záloha: V textu je někde ID
+        match = rawUrl.match(/([a-zA-Z0-9]{18,24})/);
+        if (match) { ids.add(match[1]); return; }
+    };
+
+    if (!ep) return [];
+    extract(ep); // Pokud je předán rovnou string
+    if (ep.streamujId) extract(ep.streamujId);
+    if (ep.l) extract(ep.l);
+    if (ep.link) extract(ep.link);
+    if (ep.url) extract(ep.url);
+
+    // Důležité: Procházíme úplně všechna zrcadla!
+    if (Array.isArray(ep.mirrors)) {
+        ep.mirrors.forEach(m => {
+            extract(m.l);
+            extract(m.link);
+            extract(m.id);
+            extract(m.url);
+            extract(m.streamujId);
+        });
     }
-
-    if (!rawUrl) return null;
-
-    // Pokud už odkaz obsahuje celou URL, ořízneme ho pouze na ID (např. 6831s28706a6e1620161)
-    const videoMatch = rawUrl.match(/video\/([a-zA-Z0-9]+)/);
-    if (videoMatch) return videoMatch[1];
-
-    // Pokud je to rovnou jen alfanumerické ID
-    if (/^[a-zA-Z0-9]+$/.test(rawUrl)) return rawUrl;
-
-    return rawUrl;
+    
+    return Array.from(ids);
 }
 
 // Získání detailu ze Sosáče
@@ -100,7 +119,7 @@ async function fetchSosacDetailPublic(type, id, username, passMd5) {
     }
 }
 
-// Přesná extrakce titulků z HTML webového přehrávače
+// Extrakce titulků z HTML webového přehrávače
 async function fetchSubtitlesFromStreamuj(streamujId, username, passMd5, reqHost) {
     const subtitles = [];
     const addedUrls = new Set();
@@ -123,7 +142,7 @@ async function fetchSubtitlesFromStreamuj(streamujId, username, passMd5, reqHost
             const proxyUrl = `https://${reqHost}/sub-proxy?url=${encodeURIComponent(cleanUrl)}&u=${encodeURIComponent(username)}&p=${encodeURIComponent(passMd5)}`;
 
             subtitles.push({
-                id: `streamuj_sub_${subtitles.length}`,
+                id: `streamuj_${streamujId}_sub_${subtitles.length}`,
                 url: proxyUrl,
                 lang: langCode,
                 file_name: `Streamuj.tv - ${label}`
@@ -132,11 +151,9 @@ async function fetchSubtitlesFromStreamuj(streamujId, username, passMd5, reqHost
     };
 
     try {
-        // Vždy sestavíme přesnou URL webového přehrávače, který obsahuje titulky
-        const videoUrl = streamujId.startsWith('http') ? streamujId : `https://www.streamuj.tv/video/${streamujId}`;
+        const videoUrl = `https://www.streamuj.tv/video/${streamujId}`;
         const htmlText = await httpsGet(videoUrl, username, passMd5);
 
-        // Parsování atributu sub0 z JWPlayer objektu
         const subRegex = /sub\d+\s*:\s*["']([^"']+)["']/gi;
         let match;
         while ((match = subRegex.exec(htmlText)) !== null) {
@@ -149,7 +166,6 @@ async function fetchSubtitlesFromStreamuj(streamujId, username, passMd5, reqHost
             }
         }
 
-        // Záložní hledání přes parametr ?streamuj=subtitles
         if (subtitles.length === 0) {
             const fallbackRegex = /(https?:\/\/[^"'\s]+\?streamuj=subtitles[^"'\s]*)/gi;
             while ((match = fallbackRegex.exec(htmlText)) !== null) {
@@ -158,7 +174,7 @@ async function fetchSubtitlesFromStreamuj(streamujId, username, passMd5, reqHost
         }
 
     } catch (err) {
-        console.error('[Streamuj Subtitles Error]:', err.message);
+        console.log(`[Bez titulků] ID: ${streamujId}`);
     }
 
     return subtitles;
@@ -184,7 +200,6 @@ app.get('/sub-proxy', async (req, res) => {
         res.setHeader('Content-Type', 'text/vtt; charset=utf-8');
         return res.send(subData);
     } catch (e) {
-        console.error('[Proxy Error]:', e.message);
         return res.status(500).send('Chyba při stahování titulků.');
     }
 });
@@ -270,7 +285,7 @@ app.get('/:config/subtitles/:type/:id/:extra?.json', async (req, res) => {
     if (!creds) return res.json({ subtitles: [] });
 
     const { type, id } = req.params;
-    let streamujId = null;
+    let streamujIds = [];
 
     try {
         if (id.includes('sosac')) {
@@ -283,7 +298,7 @@ app.get('/:config/subtitles/:type/:id/:extra?.json', async (req, res) => {
 
             if (sosacData) {
                 if (type === 'movie') {
-                    streamujId = extractStreamujId(sosacData);
+                    streamujIds = extractAllStreamujIds(sosacData);
                 } else if (type === 'series' && season !== null && episode !== null) {
                     let epList = sosacData.episodes || [];
                     if (!epList.length && sosacData.seasons) {
@@ -296,7 +311,6 @@ app.get('/:config/subtitles/:type/:id/:extra?.json', async (req, res) => {
                         (ep.episode === episode || ep.e === episode)
                     );
 
-                    // Pokud epizoda není v seznamu seriálu, dotáhneme seznam epizod zvlášť
                     if (!targetEp) {
                         try {
                             const epRaw = await httpsGet(`https://${SOSAC_API_DOMAIN}/series/${cleanId}/episodes`, creds.username, creds.passMd5);
@@ -312,17 +326,15 @@ app.get('/:config/subtitles/:type/:id/:extra?.json', async (req, res) => {
                     }
 
                     if (targetEp) {
-                        streamujId = extractStreamujId(targetEp);
+                        streamujIds = extractAllStreamujIds(targetEp);
                         
-                        // Pojistka: Pokud jsme stále nenašli link, ale máme ID epizody, dotáhneme její detail ze Sosáče
-                        if (!streamujId && targetEp.id) {
+                        // Pojistka: Pokud jsme stále nic nenašli, dotáhneme přímý detail epizody
+                        if (streamujIds.length === 0 && targetEp.id) {
                             try {
                                 const epDetailRaw = await httpsGet(`https://${SOSAC_API_DOMAIN}/episodes/${targetEp.id}`, creds.username, creds.passMd5);
                                 const epDetail = JSON.parse(epDetailRaw);
-                                streamujId = extractStreamujId(epDetail.item || epDetail.episode || epDetail);
-                            } catch (e) {
-                                console.error('[Získání detailu epizody selhalo]:', e.message);
-                            }
+                                streamujIds = extractAllStreamujIds(epDetail.item || epDetail.episode || epDetail);
+                            } catch (e) {}
                         }
                     }
                 }
@@ -330,11 +342,29 @@ app.get('/:config/subtitles/:type/:id/:extra?.json', async (req, res) => {
         }
 
         let subtitles = [];
-        if (streamujId) {
-            subtitles = await fetchSubtitlesFromStreamuj(streamujId, creds.username, creds.passMd5, req.headers.host);
+        if (streamujIds.length > 0) {
+            // Unikátní ID, omezíme na max 8, aby to Stremio nestoplo na Timeout (typicky je 1-4)
+            const uniqueIds = Array.from(new Set(streamujIds)).slice(0, 8);
+            
+            // Asynchronně otestujeme VŠECHNY dostupné mirrory na to, zda obsahují titulky
+            const fetchPromises = uniqueIds.map(sid => fetchSubtitlesFromStreamuj(sid, creds.username, creds.passMd5, req.headers.host));
+            const results = await Promise.all(fetchPromises);
+            
+            // Sloučíme všechny nalezené titulky do jednoho pole
+            results.forEach(subs => subtitles.push(...subs));
         }
 
-        return res.json({ subtitles });
+        // Odstranění úplných duplikátů (pokud různé mirrory odkazovaly na naprosto stejný soubor titulků)
+        const uniqueSubtitles = [];
+        const seenUrls = new Set();
+        subtitles.forEach(sub => {
+            if (!seenUrls.has(sub.url)) {
+                seenUrls.add(sub.url);
+                uniqueSubtitles.push(sub);
+            }
+        });
+
+        return res.json({ subtitles: uniqueSubtitles });
     } catch (e) {
         console.error('[Handler Error]:', e.message);
         return res.json({ subtitles: [] });
