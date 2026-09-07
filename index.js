@@ -8,7 +8,7 @@ const SOSAC_API_DOMAIN = 'kodi-api.sosac.to';
 
 const manifest = {
     id: 'org.stremio.sosac.streamuj.subtitles.public',
-    version: '2.6.5',
+    version: '2.6.6',
     name: 'Sosáč + Streamuj CZ Titulky',
     description: 'Komunitní doplněk pro české titulky ze Sosáč / Streamuj.tv',
     types: ['movie', 'series'],
@@ -51,7 +51,6 @@ function httpsGet(url, username, passMd5, customHeaders = {}) {
     });
 }
 
-// Převod IMDb ID (tt...) na Sosáč ID pomocí Cinemety a vyhledávání
 async function resolveSosacSeriesId(imdbId, username, passMd5) {
     if (!imdbId.startsWith('tt')) return imdbId;
     try {
@@ -85,10 +84,10 @@ async function resolveSosacSeriesId(imdbId, username, passMd5) {
     return imdbId;
 }
 
-// Spolehlivá extrakce Streamuj ID ze všech typů řetězců (včetně .mp4 odkazů ze Stremia)
 function extractAllStreamujIds(ep) {
     const ids = new Set();
     const directSubs = new Set();
+    const mp4Urls = new Set();
 
     const parseString = (str) => {
         if (!str || typeof str !== 'string') return;
@@ -97,15 +96,16 @@ function extractAllStreamujIds(ep) {
             directSubs.add(str);
         }
 
-        // 1. Hledání ID v odkazech /vid/ nebo /video/
+        if (str.includes('.mp4')) {
+            mp4Urls.add(str);
+        }
+
         let mVid = str.match(/(?:video|vid)\/([a-zA-Z0-9]{10,35})/);
         if (mVid) ids.add(mVid[1]);
 
-        // 2. Hledání ID v přímých .mp4 odkazech ze Stremia (např. .../69ads04210a8ec621219_sd.mp4)
         let mMp4 = str.match(/\/([a-zA-Z0-9]{15,30})(?:_sd|_hd|_720p|_1080p|_480p)?\.mp4/i);
         if (mMp4) ids.add(mMp4[1]);
 
-        // 3. Obecný vzor pro alfanumerická ID
         let mId = str.match(/([0-9]+[a-z0-9]{10,30})/i);
         if (mId && !str.endsWith('.mp4')) {
             ids.add(mId[1]);
@@ -128,10 +128,9 @@ function extractAllStreamujIds(ep) {
     };
 
     recursiveSearch(ep);
-    return { ids: Array.from(ids), directSubs: Array.from(directSubs) };
+    return { ids: Array.from(ids), directSubs: Array.from(directSubs), mp4Urls: Array.from(mp4Urls) };
 }
 
-// Stažení titulků přímo z online webového přehrávače Streamuj.tv
 async function fetchSubtitlesFromStreamuj(streamujId, username, passMd5, reqHost) {
     const subtitles = [];
     const addedUrls = new Set();
@@ -166,7 +165,6 @@ async function fetchSubtitlesFromStreamuj(streamujId, username, passMd5, reqHost
         const playerUrl = streamujId.startsWith('http') ? streamujId : `https://www.streamuj.tv/video/${streamujId}`;
         const htmlText = await httpsGet(playerUrl, username, passMd5);
 
-        // Hledání v objektu titulků přehrávače (např. sub1: "Čeština>/subtitles/...")
         const subRegex = /sub\d+\s*:\s*["']([^"']+)["']/gi;
         let match;
         while ((match = subRegex.exec(htmlText)) !== null) {
@@ -179,7 +177,6 @@ async function fetchSubtitlesFromStreamuj(streamujId, username, passMd5, reqHost
             }
         }
 
-        // Obecné hledání v HTML atributech
         const generalSubRegex = /(?:src|href|url)\s*[:=]\s*["']([^"']+\.(?:srt|vtt)|[^"']*sub[^"']*)["']/gi;
         while ((match = generalSubRegex.exec(htmlText)) !== null) {
             const foundUrl = match[1];
@@ -188,7 +185,6 @@ async function fetchSubtitlesFromStreamuj(streamujId, username, passMd5, reqHost
             }
         }
 
-        // Fallback pro ?streamuj=subtitles
         if (subtitles.length === 0) {
             const fallbackRegex = /(https?:\/\/[^"'\s]+\?streamuj=subtitles[^"'\s]*)/gi;
             while ((match = fallbackRegex.exec(htmlText)) !== null) {
@@ -200,6 +196,44 @@ async function fetchSubtitlesFromStreamuj(streamujId, username, passMd5, reqHost
         console.log(`[Bez titulků] ID: ${streamujId}`);
     }
 
+    return subtitles;
+}
+
+async function fetchSubtitlesFromMp4Url(mp4Url, username, passMd5, reqHost) {
+    const subtitles = [];
+    try {
+        const cleanVideoUrl = mp4Url.split('?')[0];
+        const lastSlash = cleanVideoUrl.lastIndexOf('/');
+        const dirUrl = cleanVideoUrl.substring(0, lastSlash + 1);
+        const filenameWithExt = cleanVideoUrl.substring(lastSlash + 1);
+        const baseName = filenameWithExt.replace(/(_sd|_hd|_720p|_1080p|_480p)?\.mp4/i, '');
+
+        const candidateSubUrls = [
+            `${dirUrl}${baseName}_cs.srt`,
+            `${dirUrl}${baseName}_cz.srt`,
+            `${dirUrl}${baseName}.srt`,
+            `${dirUrl}${baseName}_cs.vtt`,
+            `${dirUrl}${baseName}.vtt`
+        ];
+
+        for (const subCandidate of candidateSubUrls) {
+            try {
+                const authQuery = mp4Url.includes('?') ? '?' + mp4Url.split('?')[1] : '';
+                const testUrl = subCandidate + authQuery;
+                const subData = await httpsGet(testUrl, username, passMd5);
+                if (subData && !subData.trim().startsWith('<') && (subData.includes('-->') || subData.length > 20)) {
+                    const proxyUrl = `https://${reqHost}/sub-proxy?url=${encodeURIComponent(testUrl)}&u=${encodeURIComponent(username)}&p=${encodeURIComponent(passMd5)}`;
+                    subtitles.push({
+                        id: `streamuj_cdn_sub_${subtitles.length}`,
+                        url: proxyUrl,
+                        lang: 'cs',
+                        file_name: `Streamuj.tv - Čeština (CDN)`
+                    });
+                    break;
+                }
+            } catch (e) {}
+        }
+    } catch (e) {}
     return subtitles;
 }
 
@@ -383,7 +417,18 @@ app.get('/:config/subtitles/:type/:id/:extra?.json', async (req, res) => {
                 });
             }
 
-            // 2. Skenování ID a dotaz do online webového přehrávače Streamuj.tv
+            // 2. Kontrola sidecar titulků na CDN vedle .mp4 souborů (klíčové pro seriály)
+            if (subtitles.length === 0 && extracted.mp4Urls.length > 0) {
+                for (const mp4Url of extracted.mp4Urls) {
+                    const cdnSubs = await fetchSubtitlesFromMp4Url(mp4Url, creds.username, creds.passMd5, req.headers.host);
+                    if (cdnSubs.length > 0) {
+                        subtitles.push(...cdnSubs);
+                        break;
+                    }
+                }
+            }
+
+            // 3. Skenování ID a dotaz do online webového přehrávače Streamuj.tv
             if (subtitles.length === 0 && extracted.ids.length > 0) {
                 const uniqueIds = Array.from(new Set(extracted.ids)).slice(0, 8);
                 const fetchPromises = uniqueIds.map(sid => fetchSubtitlesFromStreamuj(sid, creds.username, creds.passMd5, req.headers.host));
