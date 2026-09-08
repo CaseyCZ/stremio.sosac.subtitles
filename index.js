@@ -676,6 +676,17 @@ app.get('/:config/subtitles/:type/:id/:extra?.json', async (req, res) => {
                 if (foundSubs.length > 0) {
                     console.log(`[Series] Nalezeno titulků: ${foundSubs.length}`);
                     console.log('[Series] VTT URL připravena.');
+                    console.log(
+    '[FINAL RESPONSE]',
+    JSON.stringify({
+        subtitles: foundSubs.map(sub => ({
+            id: sub.id,
+            lang: sub.lang,
+            file_name: sub.file_name,
+            url: sub.url.replace(/([?&][up]=)[^&]*/g, '$1[REDACTED]')
+        }))
+    }, null, 2)
+);
                     return res.json({
                         subtitles: foundSubs
                     });
