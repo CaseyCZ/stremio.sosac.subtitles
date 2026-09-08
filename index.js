@@ -718,8 +718,11 @@ if (type === 'series' && cleanId === '156567') {
         }))
     }, null, 2)
 );
-                  const responseSubs = ['157671', '156567'].includes(cleanId)
-    ? foundSubs.map((sub, index) => {
+                 let responseSubs = foundSubs;
+
+// Ted Lasso – ponecháme dosavadní funkční test
+if (cleanId === '157671') {
+    responseSubs = foundSubs.map((sub, index) => {
         const testUrl = new URL(sub.url);
         testUrl.searchParams.set('debug', 'original-v3');
 
@@ -729,8 +732,30 @@ if (type === 'series' && cleanId === '156567') {
             file_name: 'TEST původní VTT.vtt',
             url: testUrl.toString()
         };
-    })
-    : foundSubs;
+    });
+}
+
+// Dead City – původní a jednoduché VTT současně
+if (cleanId === '156567') {
+    responseSubs = foundSubs.map((sub, index) => {
+        const testUrl = new URL(sub.url);
+        testUrl.searchParams.set('debug', 'original-v4');
+
+        return {
+            ...sub,
+            id: `streamuj_original_${cleanId}_v4_${index}`,
+            file_name: 'Dead City - původní VTT.vtt',
+            url: testUrl.toString()
+        };
+    });
+
+    responseSubs.push({
+        id: 'streamuj_test_156567_v2',
+        lang: 'cze',
+        file_name: 'Dead City - jednoduchý TEST.vtt',
+        url: 'https://stremio-sosac-subtitlescz.onrender.com/_debug/test-v1.vtt'
+    });
+}
 
 console.log('[TEST RESPONSE]', JSON.stringify(
     responseSubs.map(sub => ({
