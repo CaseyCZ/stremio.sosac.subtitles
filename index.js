@@ -8,7 +8,7 @@ const SOSAC_API_DOMAIN = 'kodi-api.sosac.to';
 
 const manifest = {
     id: 'org.stremio.sosac.streamuj.subtitles.public',
-    version: '2.8.2',
+    version: '2.9.0',
     name: 'Sosáč + Streamuj CZ Titulky',
     description: 'Komunitní doplněk pro české titulky ze Sosáč / Streamuj.tv',
     types: ['movie', 'series'],
@@ -27,9 +27,7 @@ function httpsGet(url, username, passMd5, customHeaders = {}) {
     return new Promise((resolve, reject) => {
 
         const options = {
-
             headers: {
-
                 'User-Agent':
                     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/122.0.0.0 Safari/537.36',
 
@@ -47,7 +45,6 @@ function httpsGet(url, username, passMd5, customHeaders = {}) {
             },
 
             rejectUnauthorized: false,
-
             timeout: 20000
         };
 
@@ -59,16 +56,12 @@ function httpsGet(url, username, passMd5, customHeaders = {}) {
 
                 const chunks = [];
 
-
                 res.on(
                     'data',
                     chunk => {
-                        chunks.push(
-                            Buffer.from(chunk)
-                        );
+                        chunks.push(Buffer.from(chunk));
                     }
                 );
-
 
                 res.on(
                     'end',
@@ -144,8 +137,7 @@ function safeJsonParse(raw) {
     }
 
 
-    const text =
-        raw.trim();
+    const text = raw.trim();
 
 
     if (
@@ -176,31 +168,11 @@ function safeJsonParse(raw) {
 function decodeHtmlEntities(text) {
 
     return String(text)
-
-        .replace(
-            /&amp;/gi,
-            '&'
-        )
-
-        .replace(
-            /&quot;/gi,
-            '"'
-        )
-
-        .replace(
-            /&#39;/gi,
-            "'"
-        )
-
-        .replace(
-            /&gt;/gi,
-            '>'
-        )
-
-        .replace(
-            /&lt;/gi,
-            '<'
-        );
+        .replace(/&amp;/gi, '&')
+        .replace(/&quot;/gi, '"')
+        .replace(/&#39;/gi, "'")
+        .replace(/&gt;/gi, '>')
+        .replace(/&lt;/gi, '<');
 
 }
 
@@ -222,10 +194,7 @@ function normalizeInt(value) {
 
     const n =
         Number.parseInt(
-            String(value).replace(
-                /^S/i,
-                ''
-            ),
+            String(value).replace(/^S/i, ''),
             10
         );
 
@@ -243,14 +212,9 @@ function normalizeInt(value) {
 
 function extractAllStreamujIds(ep) {
 
-    const ids =
-        new Set();
-
-    const mp4Urls =
-        new Set();
-
-    const directSubs =
-        new Set();
+    const ids = new Set();
+    const mp4Urls = new Set();
+    const directSubs = new Set();
 
 
     function addId(value) {
@@ -296,9 +260,7 @@ function extractAllStreamujIds(ep) {
         }
 
 
-        /* -----------------------------------------
-           Streamuj CDN MP4
-           ----------------------------------------- */
+        /* Streamuj CDN MP4 */
 
         const mp4Match =
             clean.match(
@@ -310,9 +272,7 @@ function extractAllStreamujIds(ep) {
 
             mp4Urls.add(clean);
 
-            addId(
-                mp4Match[1]
-            );
+            addId(mp4Match[1]);
 
             console.log(
                 `[Extract] Streamuj ID z MP4: ${mp4Match[1]}`
@@ -323,9 +283,7 @@ function extractAllStreamujIds(ep) {
         }
 
 
-        /* -----------------------------------------
-           Obecné MP4
-           ----------------------------------------- */
+        /* Obecné MP4 */
 
         if (
             /\.mp4(?:\?|$)/i.test(clean)
@@ -342,29 +300,18 @@ function extractAllStreamujIds(ep) {
 
             if (filenameMatch) {
 
-                addId(
-                    filenameMatch[1]
-                );
+                addId(filenameMatch[1]);
 
             }
 
         }
 
 
-        /* -----------------------------------------
-           Přímé titulky
-           ----------------------------------------- */
+        /* Přímé titulky */
 
         if (
-
-            clean.includes(
-                'streamuj=subtitles'
-            )
-
-            ||
-
+            clean.includes('streamuj=subtitles') ||
             /\.(vtt|srt)(?:\?|$)/i.test(clean)
-
         ) {
 
             directSubs.add(clean);
@@ -372,9 +319,7 @@ function extractAllStreamujIds(ep) {
         }
 
 
-        /* -----------------------------------------
-           Streamuj stránka
-           ----------------------------------------- */
+        /* Streamuj stránka */
 
         const pageMatch =
             clean.match(
@@ -384,16 +329,12 @@ function extractAllStreamujIds(ep) {
 
         if (pageMatch) {
 
-            addId(
-                pageMatch[1]
-            );
+            addId(pageMatch[1]);
 
         }
 
 
-        /* -----------------------------------------
-           Samotné ID
-           ----------------------------------------- */
+        /* Samotné ID */
 
         if (
             /^[a-zA-Z0-9]{15,40}$/.test(clean)
@@ -418,7 +359,6 @@ function extractAllStreamujIds(ep) {
         ) {
 
             parseString(obj);
-
             return;
 
         }
@@ -428,10 +368,7 @@ function extractAllStreamujIds(ep) {
             Array.isArray(obj)
         ) {
 
-            obj.forEach(
-                recursiveSearch
-            );
-
+            obj.forEach(recursiveSearch);
             return;
 
         }
@@ -441,9 +378,7 @@ function extractAllStreamujIds(ep) {
             typeof obj === 'object'
         ) {
 
-            Object.values(obj).forEach(
-                recursiveSearch
-            );
+            Object.values(obj).forEach(recursiveSearch);
 
         }
 
@@ -454,16 +389,9 @@ function extractAllStreamujIds(ep) {
 
 
     return {
-
-        ids:
-            Array.from(ids),
-
-        directSubs:
-            Array.from(directSubs),
-
-        mp4Urls:
-            Array.from(mp4Urls)
-
+        ids: Array.from(ids),
+        directSubs: Array.from(directSubs),
+        mp4Urls: Array.from(mp4Urls)
     };
 
 }
@@ -490,16 +418,11 @@ function parseUserConfig(configStr) {
 
 
     const username =
-        configStr.slice(
-            0,
-            splitAt
-        );
+        configStr.slice(0, splitAt);
 
 
     const passMd5 =
-        configStr.slice(
-            splitAt + 1
-        );
+        configStr.slice(splitAt + 1);
 
 
     if (
@@ -513,17 +436,102 @@ function parseUserConfig(configStr) {
 
 
     return {
-
         username,
         passMd5
-
     };
 
 }
 
 
 /* =========================================================
-   PROXY URL
+   SRT -> WEBVTT
+   ========================================================= */
+
+function convertSrtToVtt(content) {
+
+    if (!content) {
+        return '';
+    }
+
+
+    let text =
+        String(content)
+            .replace(/^\uFEFF/, '')
+            .replace(/\r\n/g, '\n')
+            .replace(/\r/g, '\n');
+
+
+    /* Pokud už je VTT, pouze ho vrátíme */
+
+    if (
+        /^\s*WEBVTT(?:\s|$)/i.test(text)
+    ) {
+
+        return text.trim() + '\n';
+
+    }
+
+
+    /*
+     * SRT timestamp:
+     *
+     * 00:01:12,500 --> 00:01:15,800
+     *
+     * VTT:
+     *
+     * 00:01:12.500 --> 00:01:15.800
+     */
+
+    text =
+        text.replace(
+            /(\d{2}:\d{2}:\d{2}),(\d{3})/g,
+            '$1.$2'
+        );
+
+
+    /*
+     * Odstraníme číslování jednotlivých SRT bloků.
+     *
+     * Například:
+     *
+     * 1
+     * 00:00:01.000 --> 00:00:03.000
+     *
+     * A ponecháme:
+     *
+     * 00:00:01.000 --> 00:00:03.000
+     */
+
+    text =
+        text.replace(
+            /(^|\n)\s*\d+\s*\n(?=\d{2}:\d{2}:\d{2}\.\d{3}\s*-->\s*)/g,
+            '$1'
+        );
+
+
+    /*
+     * Některé SRT soubory mají první řádek WEBVTT.
+     * Zajistíme pouze jeden WEBVTT header.
+     */
+
+    text =
+        text.replace(
+            /^\s*WEBVTT\s*/i,
+            ''
+        );
+
+
+    return (
+        'WEBVTT\n\n' +
+        text.trim() +
+        '\n'
+    );
+
+}
+
+
+/* =========================================================
+   PROXY URL - APPLE TV / KSPLAYER
    ========================================================= */
 
 function buildProxyUrl(
@@ -543,16 +551,21 @@ function buildProxyUrl(
         req.get('host');
 
 
+    /*
+     * DŮLEŽITÉ:
+     *
+     * Apple TV dostane skutečnou URL končící .vtt.
+     *
+     * To je rozdíl proti původnímu:
+     *
+     * /sub-proxy
+     */
+
     return (
-
-        `${proto}://${host}/sub-proxy` +
-
+        `${proto}://${host}/subtitles.vtt` +
         `?url=${encodeURIComponent(rawSubUrl)}` +
-
         `&u=${encodeURIComponent(username)}` +
-
         `&p=${encodeURIComponent(passMd5)}`
-
     );
 
 }
@@ -594,21 +607,17 @@ async function fetchSubtitlesFromStreamuj(
                 username,
                 passMd5,
                 {
-
                     'Accept':
                         'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
 
                     'Referer':
                         `https://www.streamuj.tv/video/${videoId}`
-
                 }
             );
 
 
         if (!html) {
-
             return subtitles;
-
         }
 
 
@@ -617,9 +626,9 @@ async function fetchSubtitlesFromStreamuj(
         );
 
 
-        /* -----------------------------------------
-           Hlavní způsob - sub0
-           ----------------------------------------- */
+        /* =====================================================
+           HLAVNÍ - sub0
+           ===================================================== */
 
         const subMatch =
             html.match(
@@ -647,22 +656,16 @@ async function fetchSubtitlesFromStreamuj(
             ) {
 
                 const subLang =
-                    parts
-                        .shift()
-                        .trim() ||
+                    parts.shift().trim() ||
                     'čeština';
 
 
                 let rawSubUrl =
-                    parts
-                        .join('>')
-                        .trim();
+                    parts.join('>').trim();
 
 
                 if (
-                    !rawSubUrl.startsWith(
-                        'http'
-                    )
+                    !rawSubUrl.startsWith('http')
                 ) {
 
                     rawSubUrl =
@@ -674,9 +677,7 @@ async function fetchSubtitlesFromStreamuj(
 
 
                 if (
-                    rawSubUrl.includes(
-                        'streamuj=subtitles'
-                    )
+                    rawSubUrl.includes('streamuj=subtitles')
                 ) {
 
                     const proxyUrl =
@@ -698,6 +699,11 @@ async function fetchSubtitlesFromStreamuj(
                     );
 
 
+                    console.log(
+                        `[Subtitle] Apple TV VTT URL: ${proxyUrl}`
+                    );
+
+
                     subtitles.push({
 
                         id:
@@ -707,10 +713,10 @@ async function fetchSubtitlesFromStreamuj(
                             proxyUrl,
 
                         lang:
-                            'cs',
+                            'cze',
 
                         file_name:
-                            `Streamuj.tv - ${subLang}`
+                            `Streamuj.tv - ${subLang}.vtt`
 
                     });
 
@@ -721,9 +727,9 @@ async function fetchSubtitlesFromStreamuj(
         }
 
 
-        /* -----------------------------------------
-           Fallback - hledání streamuj=subtitles
-           ----------------------------------------- */
+        /* =====================================================
+           FALLBACK - streamuj=subtitles
+           ===================================================== */
 
         if (
             subtitles.length === 0
@@ -756,6 +762,11 @@ async function fetchSubtitlesFromStreamuj(
                     );
 
 
+                console.log(
+                    `[Subtitle] Fallback titulky: ${cleanUrl}`
+                );
+
+
                 subtitles.push({
 
                     id:
@@ -765,10 +776,10 @@ async function fetchSubtitlesFromStreamuj(
                         proxyUrl,
 
                     lang:
-                        'cs',
+                        'cze',
 
                     file_name:
-                        'Streamuj.tv - České titulky'
+                        'Streamuj.tv - České titulky.vtt'
 
                 });
 
@@ -777,9 +788,9 @@ async function fetchSubtitlesFromStreamuj(
         }
 
 
-        /* -----------------------------------------
-           Další fallback - sub1, sub2...
-           ----------------------------------------- */
+        /* =====================================================
+           FALLBACK - sub1, sub2...
+           ===================================================== */
 
         if (
             subtitles.length === 0
@@ -815,22 +826,16 @@ async function fetchSubtitlesFromStreamuj(
 
 
                 const subLang =
-                    parts
-                        .shift()
-                        .trim() ||
+                    parts.shift().trim() ||
                     'čeština';
 
 
                 let rawSubUrl =
-                    parts
-                        .join('>')
-                        .trim();
+                    parts.join('>').trim();
 
 
                 if (
-                    !rawSubUrl.startsWith(
-                        'http'
-                    )
+                    !rawSubUrl.startsWith('http')
                 ) {
 
                     rawSubUrl =
@@ -842,13 +847,8 @@ async function fetchSubtitlesFromStreamuj(
 
 
                 if (
-                    rawSubUrl.includes(
-                        'streamuj=subtitles'
-                    )
-                    ||
-                    /\.(srt|vtt)(?:\?|$)/i.test(
-                        rawSubUrl
-                    )
+                    rawSubUrl.includes('streamuj=subtitles') ||
+                    /\.(srt|vtt)(?:\?|$)/i.test(rawSubUrl)
                 ) {
 
                     const proxyUrl =
@@ -860,6 +860,11 @@ async function fetchSubtitlesFromStreamuj(
                         );
 
 
+                    console.log(
+                        `[Subtitle] subX nalezeno: ${subLang}`
+                    );
+
+
                     subtitles.push({
 
                         id:
@@ -869,10 +874,10 @@ async function fetchSubtitlesFromStreamuj(
                             proxyUrl,
 
                         lang:
-                            'cs',
+                            'cze',
 
                         file_name:
-                            `Streamuj.tv - ${subLang}`
+                            `Streamuj.tv - ${subLang}.vtt`
 
                     });
 
@@ -921,7 +926,6 @@ async function fetchSosacMovie(
             username,
             passMd5,
             {
-
                 'Referer':
                     'https://sosac.tv/',
 
@@ -930,7 +934,6 @@ async function fetchSosacMovie(
 
                 'Accept':
                     'application/json,text/plain,*/*'
-
             }
         );
 
@@ -940,20 +943,14 @@ async function fetchSosacMovie(
 
 
     if (!data) {
-
         return null;
-
     }
 
 
     return (
-
         data.item ||
-
         data.movie ||
-
         data
-
     );
 
 }
@@ -986,7 +983,6 @@ async function fetchSosacSeriesRaw(
                 username,
                 passMd5,
                 {
-
                     'Referer':
                         'https://sosac.tv/',
 
@@ -995,7 +991,6 @@ async function fetchSosacSeriesRaw(
 
                     'Accept':
                         'application/json,text/plain,*/*'
-
                 }
             );
 
@@ -1037,159 +1032,198 @@ async function fetchSosacSeriesRaw(
 
 
 /* =========================================================
-   SUBTITLE PROXY
+   APPLE TV VTT PROXY
+   ========================================================= */
+
+async function handleSubtitleVtt(req, res) {
+
+    const {
+        url,
+        u,
+        p
+    } = req.query;
+
+
+    if (
+        !url ||
+        !u ||
+        !p
+    ) {
+
+        return res
+            .status(400)
+            .type('text/plain')
+            .send('Chybí parametry.');
+
+    }
+
+
+    try {
+
+        const targetUrl =
+            decodeURIComponent(url);
+
+
+        console.log('');
+        console.log(
+            `[VTT Proxy] GET: ${targetUrl}`
+        );
+
+
+        const subData =
+            await httpsGet(
+                targetUrl,
+                u,
+                p,
+                {
+                    'Accept':
+                        'text/vtt,text/plain,application/x-subrip,*/*',
+
+                    'Referer':
+                        'https://www.streamuj.tv/'
+                }
+            );
+
+
+        if (
+            !subData ||
+            /^\s*</.test(subData)
+        ) {
+
+            throw new Error(
+                'Streamuj nevrátil platná textová data titulků.'
+            );
+
+        }
+
+
+        const vtt =
+            convertSrtToVtt(
+                subData
+            );
+
+
+        if (
+            !vtt ||
+            !/^WEBVTT/i.test(vtt.trim())
+        ) {
+
+            throw new Error(
+                'Nepodařilo se vytvořit platný WebVTT soubor.'
+            );
+
+        }
+
+
+        console.log(
+            `[VTT Proxy] Titulky načteny: ${subData.length} znaků`
+        );
+
+
+        console.log(
+            `[VTT Proxy] WebVTT: ${vtt.length} znaků`
+        );
+
+
+        /* CORS */
+
+        res.setHeader(
+            'Access-Control-Allow-Origin',
+            '*'
+        );
+
+
+        res.setHeader(
+            'Access-Control-Allow-Headers',
+            '*'
+        );
+
+
+        res.setHeader(
+            'Access-Control-Expose-Headers',
+            'Content-Type, Content-Length'
+        );
+
+
+        /* Nedržet staré titulky v cache */
+
+        res.setHeader(
+            'Cache-Control',
+            'no-cache, no-store, must-revalidate'
+        );
+
+
+        res.setHeader(
+            'Pragma',
+            'no-cache'
+        );
+
+
+        res.setHeader(
+            'Expires',
+            '0'
+        );
+
+
+        res.setHeader(
+            'Content-Disposition',
+            'inline; filename="subtitles.vtt"'
+        );
+
+
+        /*
+         * KRITICKÉ PRO APPLE TV:
+         *
+         * explicitní WebVTT MIME type
+         */
+
+        res.setHeader(
+            'Content-Type',
+            'text/vtt; charset=utf-8'
+        );
+
+
+        return res.send(vtt);
+
+    } catch (e) {
+
+        console.error(
+            `[VTT Proxy] ${e.message}`
+        );
+
+
+        return res
+            .status(500)
+            .type('text/plain')
+            .send(
+                'Chyba při stahování titulků.'
+            );
+
+    }
+
+}
+
+
+/* =========================================================
+   VTT ROUTE
+   ========================================================= */
+
+app.get(
+    '/subtitles.vtt',
+    handleSubtitleVtt
+);
+
+
+/* =========================================================
+   STARÁ PROXY ROUTE
+   =========================================================
+   Ponecháváme ji kvůli kompatibilitě.
+   Pokud někde existuje stará URL, stále funguje.
    ========================================================= */
 
 app.get(
     '/sub-proxy',
-    async (req, res) => {
-
-        const {
-            url,
-            u,
-            p
-        } = req.query;
-
-
-        if (
-            !url ||
-            !u ||
-            !p
-        ) {
-
-            return res
-                .status(400)
-                .send(
-                    'Chybí parametry.'
-                );
-
-        }
-
-
-        try {
-
-            const targetUrl =
-                decodeURIComponent(url);
-
-
-            console.log(
-                `[Proxy] GET: ${targetUrl}`
-            );
-
-
-            const subData =
-                await httpsGet(
-                    targetUrl,
-                    u,
-                    p,
-                    {
-
-                        'Accept':
-                            'text/vtt,text/plain,application/x-subrip,*/*',
-
-                        'Referer':
-                            'https://www.streamuj.tv/'
-
-                    }
-                );
-
-
-            if (
-                !subData ||
-                /^\s*</.test(subData)
-            ) {
-
-                throw new Error(
-                    'Streamuj nevrátil platná textová data titulků.'
-                );
-
-            }
-
-
-            const cleanSub =
-                String(subData)
-                    .replace(
-                        /^\uFEFF/,
-                        ''
-                    )
-                    .trimStart();
-
-
-            const isVtt =
-                /^WEBVTT(?:\s|$)/i.test(
-                    cleanSub
-                );
-
-
-            const contentType =
-                isVtt
-
-                    ? 'text/vtt; charset=utf-8'
-
-                    : 'application/x-subrip; charset=utf-8';
-
-
-            console.log(
-                `[Proxy] Titulky načteny: ${subData.length} znaků, format=${isVtt ? 'VTT' : 'SRT'}`
-            );
-
-
-            res.setHeader(
-                'Access-Control-Allow-Origin',
-                '*'
-            );
-
-
-            res.setHeader(
-                'Access-Control-Allow-Headers',
-                '*'
-            );
-
-
-            res.setHeader(
-                'Access-Control-Expose-Headers',
-                'Content-Type, Content-Length'
-            );
-
-
-            res.setHeader(
-                'Cache-Control',
-                'no-cache, no-store, must-revalidate'
-            );
-
-
-            res.setHeader(
-                'Content-Disposition',
-                'inline'
-            );
-
-
-            res.setHeader(
-                'Content-Type',
-                contentType
-            );
-
-
-            return res.send(
-                subData
-            );
-
-        } catch (e) {
-
-            console.error(
-                `[Proxy] ${e.message}`
-            );
-
-
-            return res
-                .status(500)
-                .send(
-                    'Chyba při stahování titulků.'
-                );
-
-        }
-
-    }
+    handleSubtitleVtt
 );
 
 
@@ -1230,225 +1264,95 @@ app.get(
     content="width=device-width, initial-scale=1.0"
 >
 
-<title>
-Sosáč Titulky - Stremio Addon
-</title>
+<title>Sosáč Titulky - Stremio Addon</title>
 
 
 <style>
 
 body {
-
-    font-family:
-        system-ui,
-        sans-serif;
-
-    background:
-        #0f172a;
-
-    color:
-        #f8fafc;
-
-    display:
-        flex;
-
-    justify-content:
-        center;
-
-    align-items:
-        center;
-
-    min-height:
-        100vh;
-
-    margin:
-        0;
-
-    padding:
-        1rem;
-
-    box-sizing:
-        border-box;
-
+    font-family: system-ui, sans-serif;
+    background: #0f172a;
+    color: #f8fafc;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    margin: 0;
+    padding: 1rem;
+    box-sizing: border-box;
 }
-
 
 .card {
-
-    background:
-        #1e293b;
-
-    padding:
-        2rem;
-
-    border-radius:
-        1rem;
-
-    width:
-        100%;
-
-    max-width:
-        440px;
-
-    box-shadow:
-        0 20px 25px -5px rgba(0,0,0,0.5);
-
+    background: #1e293b;
+    padding: 2rem;
+    border-radius: 1rem;
+    width: 100%;
+    max-width: 440px;
+    box-shadow: 0 20px 25px -5px rgba(0,0,0,0.5);
 }
-
 
 h1 {
-
-    font-size:
-        1.5rem;
-
-    font-weight:
-        700;
-
-    color:
-        #38bdf8;
-
-    text-align:
-        center;
-
-    margin-bottom:
-        0.5rem;
-
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: #38bdf8;
+    text-align: center;
+    margin-bottom: 0.5rem;
 }
-
 
 p {
-
-    font-size:
-        0.875rem;
-
-    color:
-        #94a3b8;
-
-    text-align:
-        center;
-
-    margin-bottom:
-        1.5rem;
-
+    font-size: 0.875rem;
+    color: #94a3b8;
+    text-align: center;
+    margin-bottom: 1.5rem;
 }
-
 
 .field {
-
-    margin-bottom:
-        1.25rem;
-
+    margin-bottom: 1.25rem;
 }
-
 
 label {
-
-    display:
-        block;
-
-    font-size:
-        0.875rem;
-
-    margin-bottom:
-        0.5rem;
-
-    color:
-        #cbd5e1;
-
+    display: block;
+    font-size: 0.875rem;
+    margin-bottom: 0.5rem;
+    color: #cbd5e1;
 }
-
 
 input {
-
-    width:
-        100%;
-
-    padding:
-        0.75rem;
-
-    border-radius:
-        0.5rem;
-
-    border:
-        1px solid #334155;
-
-    background:
-        #0f172a;
-
-    color:
-        white;
-
-    box-sizing:
-        border-box;
-
+    width: 100%;
+    padding: 0.75rem;
+    border-radius: 0.5rem;
+    border: 1px solid #334155;
+    background: #0f172a;
+    color: white;
+    box-sizing: border-box;
 }
-
 
 button,
 .btn {
-
-    width:
-        100%;
-
-    padding:
-        0.875rem;
-
-    border-radius:
-        0.5rem;
-
-    border:
-        none;
-
-    background:
-        #0284c7;
-
-    color:
-        white;
-
-    font-weight:
-        600;
-
-    cursor:
-        pointer;
-
-    text-align:
-        center;
-
-    text-decoration:
-        none;
-
-    display:
-        block;
-
-    box-sizing:
-        border-box;
-
+    width: 100%;
+    padding: 0.875rem;
+    border-radius: 0.5rem;
+    border: none;
+    background: #0284c7;
+    color: white;
+    font-weight: 600;
+    cursor: pointer;
+    text-align: center;
+    text-decoration: none;
+    display: block;
+    box-sizing: border-box;
 }
-
 
 button:hover,
 .btn:hover {
-
-    background:
-        #0369a1;
-
+    background: #0369a1;
 }
 
-
 #result {
-
-    display:
-        none;
-
-    margin-top:
-        1.5rem;
-
-    padding-top:
-        1.5rem;
-
-    border-top:
-        1px solid #334155;
-
+    display: none;
+    margin-top: 1.5rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid #334155;
 }
 
 </style>
@@ -1464,17 +1368,14 @@ button:hover,
 
 <div class="card">
 
-
 <h1>
 Sosáč CZ Titulky
 </h1>
 
 
 <p>
-
 Zadejte své přihlašovací údaje ze Sosáč.tv
 pro generování doplňku.
-
 </p>
 
 
@@ -1484,22 +1385,15 @@ pro generování doplňku.
 <div class="field">
 
 <label for="username">
-
 Uživatelské jméno
-
 </label>
 
 
 <input
-
     type="text"
-
     id="username"
-
     required
-
     placeholder="TvojeJmeno"
-
 >
 
 </div>
@@ -1507,34 +1401,23 @@ Uživatelské jméno
 
 <div class="field">
 
-
 <label for="password">
-
 Heslo
-
 </label>
 
 
 <input
-
     type="password"
-
     id="password"
-
     required
-
     placeholder="••••••••"
-
 >
-
 
 </div>
 
 
 <button type="submit">
-
 Vygenerovat instalační odkaz
-
 </button>
 
 
@@ -1543,21 +1426,13 @@ Vygenerovat instalační odkaz
 
 <div id="result">
 
-
 <a
-
     id="stremioBtn"
-
     href="#"
-
     class="btn"
-
 >
-
 Instalovat do Stremio
-
 </a>
-
 
 </div>
 
@@ -1566,7 +1441,6 @@ Instalovat do Stremio
 
 
 <script>
-
 
 document
     .getElementById('configForm')
@@ -1627,7 +1501,6 @@ document
 
         }
     );
-
 
 </script>
 
@@ -1741,9 +1614,7 @@ app.get(
         if (!creds) {
 
             return res.json({
-
                 subtitles: []
-
             });
 
         }
@@ -1757,9 +1628,9 @@ app.get(
 
         try {
 
-            /* -----------------------------------------
+            /* =================================================
                ID
-               ----------------------------------------- */
+               ================================================= */
 
             const idParts =
                 id.split(':');
@@ -1775,23 +1646,17 @@ app.get(
 
             const season =
                 idParts[1]
-                    ? normalizeInt(
-                        idParts[1]
-                    )
+                    ? normalizeInt(idParts[1])
                     : null;
 
 
             const episode =
                 idParts[2]
-                    ? normalizeInt(
-                        idParts[2]
-                    )
+                    ? normalizeInt(idParts[2])
                     : null;
 
 
             console.log('');
-
-
             console.log(
                 '========================================'
             );
@@ -1812,9 +1677,9 @@ app.get(
             );
 
 
-            /* =====================================================
+            /* =================================================
                MOVIE
-               ===================================================== */
+               ================================================= */
 
             if (
                 type === 'movie'
@@ -1836,9 +1701,7 @@ app.get(
 
 
                     return res.json({
-
                         subtitles: []
-
                     });
 
                 }
@@ -1887,12 +1750,8 @@ app.get(
                 }
 
 
-                const uniqueSubtitles =
-                    [];
-
-
-                const seenUrls =
-                    new Set();
+                const uniqueSubtitles = [];
+                const seenUrls = new Set();
 
 
                 for (
@@ -1900,15 +1759,10 @@ app.get(
                 ) {
 
                     if (
-                        !seenUrls.has(
-                            sub.url
-                        )
+                        !seenUrls.has(sub.url)
                     ) {
 
-                        seenUrls.add(
-                            sub.url
-                        );
-
+                        seenUrls.add(sub.url);
 
                         uniqueSubtitles.push(
                             sub
@@ -1924,6 +1778,17 @@ app.get(
                 );
 
 
+                if (
+                    uniqueSubtitles.length > 0
+                ) {
+
+                    console.log(
+                        `[Movie] URL: ${uniqueSubtitles[0].url}`
+                    );
+
+                }
+
+
                 return res.json({
 
                     subtitles:
@@ -1934,34 +1799,22 @@ app.get(
             }
 
 
-            /* =====================================================
+            /* =================================================
                SERIES
-               ===================================================== */
+               ================================================= */
 
             if (
                 type === 'series'
             ) {
 
                 /*
-                 * Stremio může poslat například:
+                 * Stremio posílá například:
                  *
                  * sosac2_156567:episodes
                  *
                  * cleanId = 156567
                  *
-                 * 156567 je ID KONKRÉTNÍ EPIZODY
-                 *
-                 * API:
-                 *
-                 * /episodes/156567
-                 *
-                 * vrací například:
-                 *
-                 * {
-                 *   "s": 3,
-                 *   "ep": 7,
-                 *   "l": "690as69652ae00412411"
-                 * }
+                 * 156567 = ID konkrétní epizody
                  */
 
 
@@ -1986,9 +1839,7 @@ app.get(
 
 
                     return res.json({
-
                         subtitles: []
-
                     });
 
                 }
@@ -1999,9 +1850,9 @@ app.get(
                 );
 
 
-                /* -----------------------------------------
-                   Přímé Streamuj ID
-                   ----------------------------------------- */
+                /* =================================================
+                   PŘÍMÉ STREAMUJ ID
+                   ================================================= */
 
                 if (
                     targetData.l
@@ -2036,6 +1887,11 @@ app.get(
                         );
 
 
+                        console.log(
+                            `[Series] VTT URL: ${foundSubs[0].url}`
+                        );
+
+
                         return res.json({
 
                             subtitles:
@@ -2053,9 +1909,9 @@ app.get(
                 }
 
 
-                /* -----------------------------------------
-                   Fallback - hledání všech Streamuj ID
-                   ----------------------------------------- */
+                /* =================================================
+                   FALLBACK
+                   ================================================= */
 
                 const extracted =
                     extractAllStreamujIds(
@@ -2108,17 +1964,15 @@ app.get(
 
 
                 return res.json({
-
                     subtitles: []
-
                 });
 
             }
 
 
-            /* =====================================================
+            /* =================================================
                UNKNOWN TYPE
-               ===================================================== */
+               ================================================= */
 
             console.log(
                 `[Result] Nepodporovaný typ: ${type}`
@@ -2126,9 +1980,7 @@ app.get(
 
 
             return res.json({
-
                 subtitles: []
-
             });
 
 
@@ -2141,9 +1993,7 @@ app.get(
 
 
             return res.json({
-
                 subtitles: []
-
             });
 
         }
