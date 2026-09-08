@@ -23,7 +23,7 @@ Doplněk funguje výhradně jako poskytovatel titulků (`subtitles`). Neposkytuj
 
 ## 🚀 Rychlá instalace
 
-**![Aktuální verze](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fstremio-sosac-subtitlescz.onrender.com%2Fmanifest.json&query=%24.version&label=Aktu%C3%A1ln%C3%AD%20verze&color=blue&prefix=v)**
+**![Aktuální verze](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2FCaseyCZ%2Fstremio.sosac.subtitles%2FMaster%2Fpackage.json&query=%24.version&label=Aktu%C3%A1ln%C3%AD%20verze&color=blue&prefix=v)**
 
 1. Otevři konfigurační stránku:
    👉 **[stremio-sosac-subtitlescz.onrender.com](https://stremio-sosac-subtitlescz.onrender.com/)**
@@ -84,9 +84,3 @@ Doplněk se ve výchozím nastavení spustí na portu **7000**, pokud není nast
 ```text
 http://localhost:7000
 ```
-
----
-
-## 📦 Zdrojový kód
-
-[**GitHub – CaseyCZ/stremio.sosac.subtitles**](https://github.com/CaseyCZ/stremio.sosac.subtitles)
