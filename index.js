@@ -416,6 +416,11 @@ async function handleSubtitleVtt(req, res) {
         }
         console.log(`[VTT Proxy] Titulky načteny: ${subData.length} znaků`);
         console.log(`[VTT Proxy] WebVTT: ${vtt.length} znaků`);
+        console.log(`[VTT Proxy] Titulky načteny: ${subData.length} znaků`);
+console.log(`[VTT Proxy] WebVTT: ${vtt.length} znaků`);
+console.log('[VTT Preview]\n' + vtt.slice(0, 500));
+
+res.setHeader('Access-Control-Allow-Origin', '*');
         res.setHeader('Access-Control-Allow-Origin', '*');
         res.setHeader('Access-Control-Allow-Headers', '*');
         res.setHeader('Access-Control-Expose-Headers', 'Content-Type, Content-Length');
