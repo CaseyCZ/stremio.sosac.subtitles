@@ -818,12 +818,14 @@ async function fetchSosacSeriesRaw(
                     }
                 );
 
-            const data =
-                safeJsonParse(raw);
+            const data = safeJsonParse(raw);
 
-            if (data) {
-                return data;
-            }
+if (data) {
+    console.log(
+        `[Sosac RAW JSON] ${JSON.stringify(data).substring(0, 30000)}`
+    );
+    return data;
+}
         } catch (e) {
             console.error(
                 `[Sosac] RAW ${endpoint} chyba: ${e.message}`
