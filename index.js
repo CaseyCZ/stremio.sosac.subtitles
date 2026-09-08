@@ -643,19 +643,7 @@ app.get('/:config/subtitles/:type/:id/:extra?.json', async (req, res) => {
         console.log(`[Subtitle Request] type=${type}, id=${id}`);
         console.log(`[Subtitle Request] cleanId=${cleanId}, season=${season}, episode=${episode}`);
         console.log('========================================');
-// DOČASNÝ TEST: Dead City
-if (type === 'series' && cleanId === '156567') {
-    console.log('[TEST VTT] Vracím jednoduchý test pro Dead City.');
 
-    return res.json({
-        subtitles: [{
-            id: 'streamuj_test_156567_v1',
-            lang: 'cze',
-            file_name: 'TEST Dead City.vtt',
-            url: 'https://stremio-sosac-subtitlescz.onrender.com/_debug/test-v1.vtt'
-        }]
-    });
-}
         if (type === 'movie') {
             const targetData = await fetchSosacMovie(cleanId, creds.username, creds.passMd5);
             if (!targetData) {
