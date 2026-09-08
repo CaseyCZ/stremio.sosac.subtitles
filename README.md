@@ -4,8 +4,7 @@ Neoficiální komunitní doplněk (addon) pro [Stremio](https://www.stremio.com/
 
 Doplněk funguje výhradně jako poskytovatel titulků (`subtitles`), takže nenarušuje funkčnost ostatních video doplňků (např. SosacTV2, Torrentio apod.).
 
-[Odkaz - Stremio WEB]([[https://web.stremio.com/)
-
+ [Odkaz - Stremio WEB](https://web.stremio.com/) 
 Takže naše testy jsou:
 
 * PC Stremio Web: filmy + seriály ✅
