@@ -706,19 +706,26 @@ app.get('/:config/subtitles/:type/:id/:extra?.json', async (req, res) => {
         }))
     }, null, 2)
 );
-                    const responseSubs = cleanId === '157671'
+                  const responseSubs = ['157671', '156567'].includes(cleanId)
     ? foundSubs.map((sub, index) => {
         const testUrl = new URL(sub.url);
-        testUrl.searchParams.set('debug', 'original-v2');
+        testUrl.searchParams.set('debug', 'original-v3');
 
         return {
             ...sub,
-            id: `streamuj_original_157671_v2_${index}`,
+            id: `streamuj_original_${cleanId}_v3_${index}`,
             file_name: 'TEST původní VTT.vtt',
             url: testUrl.toString()
         };
     })
     : foundSubs;
+
+console.log('[TEST RESPONSE]', JSON.stringify(
+    responseSubs.map(sub => ({
+        id: sub.id,
+        file_name: sub.file_name
+    }))
+));
 
 return res.json({ subtitles: responseSubs });
                 }
