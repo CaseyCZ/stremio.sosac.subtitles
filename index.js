@@ -6,7 +6,7 @@ const PORT = process.env.PORT || 7000;
 const SOSAC_API_DOMAIN = 'kodi-api.sosac.to';
 const manifest = {
     id: 'org.stremio.sosac.streamuj.subtitles.public',
-    version: '2.9.1',
+    version: require('./package.json').version,
     name: 'Sosáč + Streamuj CZ Titulky',
     description: 'Komunitní doplněk pro české titulky ze Sosáč / Streamuj.tv',
     types: ['movie', 'series'],
