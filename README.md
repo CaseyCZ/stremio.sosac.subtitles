@@ -7,7 +7,7 @@ Doplněk funguje výhradně jako poskytovatel titulků (`subtitles`), takže nen
 Takže naše testy jsou:
 
 * PC / Stremio Web: filmy + seriály ✅
-* iPhone / Stremio Web (ikona na ploše): filmy ✅, seriály ❌
+* iPhone / Stremio Web (ikona na ploše): filmy ✅, seriály ✅
 * Google TV: filmy + seriály ✅
 * Apple TV: filmy + seriály ❌
 ---
