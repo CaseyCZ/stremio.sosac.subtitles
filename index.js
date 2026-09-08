@@ -1341,77 +1341,93 @@ app.get(
                     );
 
             } else if (type === 'series') {
+    // ---------------------------------------------------------
+    // SERIES
+    // Stremio posílá např.:
+    // sosac2_156567:episodes
+    //
+    // 156567 = ID konkrétní epizody v Sosáči
+    // /episodes/156567 vrací přímo:
+    //   s  = season
+    //   ep = episode
+    //   l  = Streamuj video ID
+    // ---------------------------------------------------------
 
-                // Normální požadavek:
-                // sosac2_ID:1:2
+    targetData = await fetchSosacSeriesRaw(
+        cleanId,
+        username,
+        passMd5
+    );
 
-                if (
-                    season !== null &&
-                    episode !== null
-                ) {
+    if (!targetData) {
+        console.log('[Series] Epizoda nenalezena');
+        return res.json({ subtitles: [] });
+    }
 
-                    targetData =
-                        await fetchSosacSeriesEpisode(
-                            cleanId,
-                            season,
-                            episode,
-                            creds.username,
-                            creds.passMd5
-                        );
+    console.log(
+        `[Series] Sosáč episode: season=${targetData.s}, episode=${targetData.ep}, streamuj=${targetData.l}`
+    );
 
-                } else {
+    // Přímé Streamuj ID z pole "l"
+    if (targetData.l) {
+        const streamujId = String(targetData.l).trim();
 
-                    // iPhone / Stremio Web:
-                    // někdy pošle pouze :episodes
-                    // + videoSize/videoHash
+        console.log(
+            `[Series] Používám Streamuj ID: ${streamujId}`
+        );
 
-                    const hints =
-                        parseExtraParams(
-                            req.params.extra || ''
-                        );
+        const subtitles = await fetchSubtitlesFromStreamuj(
+            streamujId,
+            username,
+            passMd5,
+            req
+        );
 
-                    console.log(
-                        `[SeriesHints] filename=${hints.filename || 'null'}, videoSize=${hints.videoSize || 'null'}, videoHash=${hints.videoHash || 'null'}`
-                    );
+        if (subtitles.length) {
+            console.log(
+                `[Series] Nalezeno titulků: ${subtitles.length}`
+            );
 
-                    const rawSeries =
-                        await fetchSosacSeriesRaw(
-                            cleanId,
-                            creds.username,
-                            creds.passMd5
-                        );
+            return res.json({
+                subtitles
+            });
+        }
 
-                    if (rawSeries) {
+        console.log(
+            '[Series] Streamuj titulky nenalezeny'
+        );
+    }
 
-                        const matched =
-                            findSeriesEpisodeByPlaybackHints(
-                                rawSeries,
-                                hints
-                            );
+    // Fallback – pokud by API někdy změnilo strukturu
+    const extracted = extractAllStreamujIds(targetData);
 
-                        if (matched) {
+    console.log(
+        `[Series] Fallback Streamuj ID: ${extracted.ids.join(', ')}`
+    );
 
-                            targetData =
-                                matched.obj;
+    for (const streamujId of extracted.ids.slice(0, 10)) {
+        const subtitles = await fetchSubtitlesFromStreamuj(
+            streamujId,
+            username,
+            passMd5,
+            req
+        );
 
-                            console.log(
-                                `[SeriesHints] Nalezena epizoda S${matched.season ?? '?'}E${matched.episode ?? '?'}, Streamuj IDs: ${matched.ids.join(', ')}`
-                            );
+        if (subtitles.length) {
+            console.log(
+                `[Series] Fallback nalezeno titulků: ${subtitles.length}`
+            );
 
-                        } else {
+            return res.json({
+                subtitles
+            });
+        }
+    }
 
-                            console.log(
-                                '[SeriesHints] Nepodařilo se určit konkrétní epizodu.'
-                            );
-                        }
-                    }
-
-                    if (!targetData) {
-
-                        return res.json({
-                            subtitles: []
-                        });
-                    }
+    return res.json({
+        subtitles: []
+    });
+}
                 }
             }
 
