@@ -643,19 +643,7 @@ app.get('/:config/subtitles/:type/:id/:extra?.json', async (req, res) => {
         console.log(`[Subtitle Request] type=${type}, id=${id}`);
         console.log(`[Subtitle Request] cleanId=${cleanId}, season=${season}, episode=${episode}`);
         console.log('========================================');
-        // DOČASNÝ TEST: pouze Ted Lasso, epizoda 157671
-if (type === 'series' && cleanId === '157671') {
-    console.log('[TEST VTT] Vracím testovací titulky pro Ted Lasso.');
 
-    return res.json({
-        subtitles: [{
-            id: 'streamuj_test_157671_v1',
-            lang: 'cze',
-            file_name: 'TEST Apple TV.vtt',
-            url: 'https://stremio-sosac-subtitlescz.onrender.com/_debug/test-v1.vtt'
-        }]
-    });
-}
         if (type === 'movie') {
             const targetData = await fetchSosacMovie(cleanId, creds.username, creds.passMd5);
             if (!targetData) {
@@ -718,9 +706,21 @@ if (type === 'series' && cleanId === '157671') {
         }))
     }, null, 2)
 );
-                    return res.json({
-                        subtitles: foundSubs
-                    });
+                    const responseSubs = cleanId === '157671'
+    ? foundSubs.map((sub, index) => {
+        const testUrl = new URL(sub.url);
+        testUrl.searchParams.set('debug', 'original-v2');
+
+        return {
+            ...sub,
+            id: `streamuj_original_157671_v2_${index}`,
+            file_name: 'TEST původní VTT.vtt',
+            url: testUrl.toString()
+        };
+    })
+    : foundSubs;
+
+return res.json({ subtitles: responseSubs });
                 }
                 console.log('[Series] Streamuj titulky nenalezeny přes hlavní cestu.');
             }
