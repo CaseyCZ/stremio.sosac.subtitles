@@ -584,6 +584,19 @@ button:focus-visible, .btn:focus-visible, input:focus-visible { outline: 2px sol
 </body>
 </html>`);
 });
+// DOČASNÝ TEST PRO APPLE TV
+app.get('/_debug/test-v1.vtt', (req, res) => {
+    console.log('[TEST VTT] Testovací soubor odeslán.');
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Cache-Control', 'no-store');
+    res.setHeader('Content-Type', 'text/vtt; charset=utf-8');
+
+    res.send(
+        'WEBVTT\n\n' +
+        '00:00:00.000 --> 00:05:00.000\n' +
+        'TEST TITULKU - Apple TV\n'
+    );
+});
 app.get('/manifest.json', (req, res) => {
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.json({
@@ -630,6 +643,19 @@ app.get('/:config/subtitles/:type/:id/:extra?.json', async (req, res) => {
         console.log(`[Subtitle Request] type=${type}, id=${id}`);
         console.log(`[Subtitle Request] cleanId=${cleanId}, season=${season}, episode=${episode}`);
         console.log('========================================');
+        // DOČASNÝ TEST: pouze Ted Lasso, epizoda 157671
+if (type === 'series' && cleanId === '157671') {
+    console.log('[TEST VTT] Vracím testovací titulky pro Ted Lasso.');
+
+    return res.json({
+        subtitles: [{
+            id: 'streamuj_test_157671_v1',
+            lang: 'cze',
+            file_name: 'TEST Apple TV.vtt',
+            url: 'https://stremio-sosac-subtitlescz.onrender.com/_debug/test-v1.vtt'
+        }]
+    });
+}
         if (type === 'movie') {
             const targetData = await fetchSosacMovie(cleanId, creds.username, creds.passMd5);
             if (!targetData) {
