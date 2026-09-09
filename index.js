@@ -1399,10 +1399,17 @@ app.get('/:config/subtitles/:type/:id/:extra?.json', async (req, res) => {
         console.log(`[Subtitle Request] cleanId=${cleanId}, season=${season}, episode=${episode}`);
         console.log('========================================');
 
+        // Sosáč používá také ID filmu/epizody se slovní příponou.
+        // Např. sosac2_156567:episodes nebo sosac2_33124:movies.
+        const validIdShape = idParts.length === 1 ||
+            (idParts.length === 2 &&
+                idParts[1] === (type === 'movie' ? 'movies' : 'episodes')) ||
+            (type === 'series' && idParts.length === 3 &&
+                season !== null && episode !== null);
+
         if (!/^(?:\d+|tt\d+)$/.test(cleanId) ||
             !['movie', 'series'].includes(type) ||
-            (idParts.length !== 1 && idParts.length !== 3) ||
-            (idParts.length === 3 && (season === null || episode === null))) {
+            !validIdShape) {
             return sendSubtitleResponse(req, res, []);
         }
 
