@@ -1192,7 +1192,7 @@ app.get(['/', '/configure'], (req, res) => {
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Sosáč Titulky - Stremio Addon</title>
+<title>CZ Titulky pro Stremio konfigurace</title>
 <style>
 body { font-family: system-ui, sans-serif; background: #0f172a; color: #f8fafc; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; padding: 1rem; box-sizing: border-box; }
 .card { background: #1e293b; padding: 2rem; border-radius: 1rem; width: 100%; max-width: 440px; box-shadow: 0 20px 25px -5px rgba(0,0,0,.5); }
@@ -1219,7 +1219,7 @@ button:focus-visible, input:focus-visible { outline: 2px solid #38bdf8; outline-
 </head>
 <body>
 <div class="card">
-<h1>Sosáč CZ Titulky</h1>
+<h1>CZ Titulky pro Stremio konfigurace</h1>
 <p>Zadejte své přihlašovací údaje ze Sosáč.tv pro generování doplňku.</p>
 <form id="configForm">
 <div class="field">
