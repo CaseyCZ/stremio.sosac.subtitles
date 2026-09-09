@@ -18,7 +18,7 @@ Doplněk funguje výhradně jako poskytovatel titulků (`subtitles`). Neposkytuj
 | Platforma                        | Filmy | Seriály |
 | -------------------------------- | :---: | :-----: |
 | Google TV                        |   ✅   |    ✅    |
-| Android – [Play-store]([https://www.stremio.com/translation/cz/downloads](https://play.google.com/store/apps/details?id=com.stremio.one)/)           |   ✅   |    ✅    |  
+| Android – Play-Store             |   ✅   |    ✅    |  
 | PC Stremio Web                   |   ✅   |    ✅    |
 | PC oficiální aplikace            |   ✅   |    ✅    |
 | iOS Stremio Web (ikona na ploše) |   ✅   |    ✅    |
