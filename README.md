@@ -1,4 +1,4 @@
-# 🎬 Sosáč + Streamuj.tv – CZ Titulky pro Stremio  👉 [**Otevřít Stremio Web**](https://web.stremio.com/)
+# 🎬 Sosáč + Streamuj.tv – CZ Titulky pro Stremio  👉 [**Stremio Web**](https://web.stremio.com/)
 
 Neoficiální komunitní doplněk (addon) pro [Stremio](https://www.stremio.com/), který umožňuje načítat české titulky ze serverů **Sosáč.tv** a **Streamuj.tv**.
 
