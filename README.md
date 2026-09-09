@@ -1,14 +1,14 @@
-# 🎬 Sosáč + Streamuj.tv – CZ Titulky pro Stremio  👉 [**Stremio Web**](https://web.stremio.com/)
-
+# 🎬 Sosáč + Streamuj.tv – CZ Titulky pro Stremio 
+👉 [**Stremio Web**](https://web.stremio.com/)
 Neoficiální komunitní doplněk (addon) pro [Stremio](https://www.stremio.com/), který umožňuje načítat české titulky ze serverů **Sosáč.tv** a **Streamuj.tv**.
-
+Poznámka: Doplněk funguje se streamy z SosacTV2 v1.3.0. - https://stremio.sosac.tv/cs/configure
 Doplněk funguje výhradně jako poskytovatel titulků (`subtitles`). Neposkytuje vlastní video streamy a lze jej používat společně s dalšími video doplňky, například SosacTV2 nebo Torrentio.
 
 ## 🚀 Rychlá instalace
 ![Aktuální verze](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2FCaseyCZ%2Fstremio.sosac.subtitles%2FMaster%2Fpackage.json&query=%24.version&label=Aktu%C3%A1ln%C3%AD%20verze&color=blue&prefix=v)
 
 1. Otevři konfigurační stránku:
-   👉 **[stremio-sosac-subtitlescz.onrender.com](https://stremio-sosac-subtitlescz.onrender.com/)**
+   👉 **[CZ Titulky pro Stremio konfigurace](https://stremio-sosac-subtitlescz.onrender.com/)**
 2. Zadej svoje přihlašovací údaje ze **Sosáč.tv** (jméno a heslo).
 3. Klikni na **Vygenerovat instalační odkaz** a potom na **Instalovat do Stremio**.
 4. Stremio se otevře a nabídne potvrzení instalace.
