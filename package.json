@@ -1,6 +1,6 @@
 {
   "name": "stremio-sosac-subtitles",
-  "version": "2.9.1",
+  "version": "2.9.3",
   "description": "Stremio titulkový addon pro Sosáč a Streamuj.tv",
   "main": "index.js",
   "scripts": {

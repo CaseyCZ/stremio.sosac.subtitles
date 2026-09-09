@@ -1,10 +1,14 @@
 const express = require('express');
 const https = require('https');
 const crypto = require('crypto');
+const fs = require('fs');
+const path = require('path');
+const os = require('os');
 
 const app = express();
 const PORT = process.env.PORT || 7000;
 const SOSAC_API_DOMAIN = 'kodi-api.sosac.to';
+const STREAMUJ_PLAYER_API = 'https://www.streamuj.tv/json_api_player.php';
 
 const manifest = {
     id: 'org.stremio.sosac.streamuj.subtitles.public',
@@ -33,7 +37,7 @@ function isAllowedHost(hostname) {
         hostname === 'www.sosac.tv';
 }
 
-function httpsGet(url, username, passMd5, customHeaders = {}, redirects = 0) {
+function httpsGet(url, username, passMd5, customHeaders = {}, redirects = 0, timeoutMs = 20000) {
     return new Promise((resolve, reject) => {
         let target;
 
@@ -62,7 +66,7 @@ function httpsGet(url, username, passMd5, customHeaders = {}, redirects = 0) {
                     : 'sublanguage=1; quality=1; videolanguage=cs',
                 ...customHeaders
             },
-            timeout: 20000
+            timeout: timeoutMs
         };
 
         const req = https.get(target, options, (res) => {
@@ -83,7 +87,8 @@ function httpsGet(url, username, passMd5, customHeaders = {}, redirects = 0) {
                         username,
                         passMd5,
                         customHeaders,
-                        redirects + 1
+                        redirects + 1,
+                        timeoutMs
                     ));
                 } catch (e) {
                     reject(new Error('Neplatné přesměrování.'));
@@ -437,10 +442,153 @@ function buildProxyUrl(req, rawSubUrl, username, passMd5) {
 }
 
 // ============================================================
+// STREAMUJ – JSON PLAYER API (podle Kodi Sosac Unofficial)
+// ============================================================
+// Kodi: resources/lib/stream_api.py, get_video_links().
+// Heslo v naší konfiguraci už je MD5 původního hesla. Znovu ho
+// nehashujeme. Přihlašovací údaje posíláme jen upstream přes HTTPS.
+
+function isRecord(value) {
+    return value !== null && typeof value === 'object' &&
+        !Array.isArray(value);
+}
+
+function normalizeSubtitleLanguage(value) {
+    const key = String(value || '').trim().normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '').toLowerCase();
+    const aliases = {
+        cs: 'cze', cz: 'cze', ces: 'cze', cze: 'cze',
+        czech: 'cze', cesky: 'cze', cestina: 'cze',
+        sk: 'slk', slk: 'slk', slo: 'slk',
+        slovak: 'slk', slovensky: 'slk', slovencina: 'slk',
+        en: 'eng', eng: 'eng', english: 'eng', anglicky: 'eng',
+        de: 'ger', deu: 'ger', ger: 'ger', german: 'ger',
+        fr: 'fre', fra: 'fre', fre: 'fre', french: 'fre',
+        es: 'spa', spa: 'spa', spanish: 'spa',
+        it: 'ita', ita: 'ita', italian: 'ita',
+        pl: 'pol', pol: 'pol', polish: 'pol',
+        hu: 'hun', hun: 'hun', hungarian: 'hun',
+        ru: 'rus', rus: 'rus', russian: 'rus',
+        uk: 'ukr', ukr: 'ukr', ukrainian: 'ukr',
+        pt: 'por', por: 'por', portuguese: 'por',
+        nl: 'dut', nld: 'dut', dut: 'dut', dutch: 'dut',
+        ro: 'rum', ron: 'rum', rum: 'rum', romanian: 'rum',
+        hr: 'hrv', hrv: 'hrv', croatian: 'hrv',
+        sr: 'srp', srp: 'srp', serbian: 'srp',
+        sl: 'slv', slv: 'slv', slovenian: 'slv',
+        da: 'dan', dan: 'dan', danish: 'dan',
+        sv: 'swe', swe: 'swe', swedish: 'swe',
+        no: 'nor', nor: 'nor', norwegian: 'nor',
+        fi: 'fin', fin: 'fin', finnish: 'fin',
+        tr: 'tur', tur: 'tur', turkish: 'tur',
+        el: 'gre', ell: 'gre', gre: 'gre', greek: 'gre',
+        ja: 'jpn', jpn: 'jpn', japanese: 'jpn',
+        ko: 'kor', kor: 'kor', korean: 'kor',
+        zh: 'chi', zho: 'chi', chi: 'chi', chinese: 'chi'
+    };
+    return aliases[key] || null;
+}
+
+function subtitleLanguageName(lang) {
+    return ({ cze: 'čeština', slk: 'slovenština', eng: 'angličtina',
+        ger: 'němčina', fre: 'francouzština', spa: 'španělština',
+        ita: 'italština', pol: 'polština', hun: 'maďarština',
+        rus: 'ruština', ukr: 'ukrajinština' })[lang] || lang;
+}
+
+// Přijímáme jen URL ze skutečného pole subtitles, nikoli video streamy.
+// Neznámý jazyk nevydáváme za češtinu. Duplicitní URL přeskočíme.
+function parsePlayerSubtitleTracks(data, videoId) {
+    if (!isRecord(data) || !isRecord(data.URL)) {
+        throw new Error('Streamuj API nevrátilo očekávanou strukturu URL.');
+    }
+    const tracks = [];
+    const seen = new Set();
+    for (const [audio, variants] of Object.entries(data.URL)) {
+        if (!isRecord(variants) || !isRecord(variants.subtitles)) continue;
+        for (const [language, rawUrl] of Object.entries(variants.subtitles)) {
+            if (typeof rawUrl !== 'string') continue;
+            const lang = normalizeSubtitleLanguage(language);
+            if (!lang) continue;
+            let sourceUrl;
+            try {
+                sourceUrl = normalizeSubtitleUrl(rawUrl);
+            } catch (_) {
+                continue;
+            }
+            if (seen.has(sourceUrl)) continue;
+            seen.add(sourceUrl);
+            const audioLabel = String(audio).replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 20);
+            const name = subtitleLanguageName(lang) +
+                (audioLabel ? ` (${audioLabel})` : '');
+            tracks.push({
+                id: `streamuj_api_${videoId}_${tracks.length}`,
+                sourceUrl,
+                lang,
+                file_name: `Streamuj.tv - ${name}.vtt`,
+                sourceKind: 'player-api',
+                videoId
+            });
+        }
+    }
+    const priority = { cze: 0, slk: 1, eng: 2 };
+    tracks.sort((a, b) => (priority[a.lang] ?? 3) - (priority[b.lang] ?? 3));
+    return tracks.slice(0, 12);
+}
+
+async function fetchSubtitlesFromPlayerApi(videoId, username, passMd5) {
+    if (!/^[a-zA-Z0-9]{15,40}$/.test(String(videoId))) {
+        throw new Error('Neplatné Streamuj ID.');
+    }
+    if (!username || !/^[a-f0-9]{32}$/i.test(passMd5 || '')) {
+        throw new Error('Chybí platná konfigurace Streamuj.');
+    }
+    const url = new URL(STREAMUJ_PLAYER_API);
+    url.searchParams.set('action', 'get-video-links');
+    url.searchParams.set('d', '19');
+    url.searchParams.set('link', String(videoId));
+    url.searchParams.set('login', username);
+    url.searchParams.set('password', passMd5);
+    url.searchParams.set('location',
+        process.env.STREAMUJ_LOCATION === '2' ? '2' : '1');
+
+    // URL se záměrně neloguje: obsahuje přihlašovací hash.
+    console.log(`[PLAYER API] Načítám Streamuj ID: ${videoId}`);
+    const raw = await httpsGet(url.toString(), username, passMd5, {
+        'Accept': 'application/json,text/plain,*/*',
+        'Referer': `https://www.streamuj.tv/video/${videoId}`
+    }, 0, 30000);
+    const data = safeJsonParse(raw);
+    if (!data || (data.errormessage !== undefined &&
+        data.errormessage !== null && data.errormessage !== 0 &&
+        data.errormessage !== '0' && data.errormessage !== '')) {
+        throw new Error('Streamuj API hlásí chybu nebo nevrátilo JSON.');
+    }
+    return parsePlayerSubtitleTracks(data, videoId);
+}
+
+// JSON je první cesta. HTML ponecháváme jako zálohu pro starší videa
+// nebo změnu dostupnosti API. Převod a předání jsou u obou stejné.
+async function fetchSubtitlesFromStreamuj(videoId, username, passMd5, req) {
+    try {
+        const subtitles = await fetchSubtitlesFromPlayerApi(
+            videoId, username, passMd5);
+        if (subtitles.length) {
+            console.log(`[PLAYER API] Nalezeno titulků: ${subtitles.length}`);
+            return subtitles;
+        }
+        console.log('[PLAYER API] Žádné podporované titulky; zkouším HTML.');
+    } catch (e) {
+        console.warn(`[PLAYER API] ${e.message}; zkouším HTML.`);
+    }
+    return fetchSubtitlesFromHtml(videoId, username, passMd5, req);
+}
+
+// ============================================================
 // STREAMUJ – VYHLEDÁNÍ TITULKŮ
 // ============================================================
 
-async function fetchSubtitlesFromStreamuj(
+async function fetchSubtitlesFromHtml(
     videoId,
     username,
     passMd5,
@@ -461,12 +609,7 @@ async function fetchSubtitlesFromStreamuj(
 
             subtitles.push({
                 id,
-                url: buildProxyUrl(
-                    req,
-                    sourceUrl,
-                    username,
-                    passMd5
-                ),
+                sourceUrl,
                 lang: 'cze',
                 file_name: `Streamuj.tv - ${subLang}.vtt`
             });
@@ -661,19 +804,15 @@ async function downloadSubtitleVtt(rawUrl, username, passMd5) {
 }
 
 function sendVtt(req, res, body) {
+    // Stejné jednoduché předání jako ve funkčním diagnostickém addonu.
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Headers', '*');
-    res.setHeader('Access-Control-Expose-Headers', 'Content-Type, Content-Length');
-    res.setHeader('Cache-Control', 'private, no-store');
-    res.setHeader('Content-Disposition', 'inline; filename="subtitles.vtt"');
+    res.setHeader('Cache-Control', 'no-store');
     res.setHeader('Content-Type', 'text/vtt; charset=utf-8');
     res.setHeader('Content-Length', body.length);
     res.setHeader('X-Content-Type-Options', 'nosniff');
 
-    if (req.method === 'HEAD') {
-        return res.end();
-    }
-
+    if (req.method === 'HEAD') return res.end();
     return res.end(body);
 }
 
@@ -711,193 +850,193 @@ app.get('/subtitles.vtt', handleSubtitleVtt);
 app.get('/sub-proxy', handleSubtitleVtt);
 
 // ============================================================
-// READY VTT CACHE
+// JEDNOTNÉ PŘEDÁNÍ HOTOVÝCH TITULKOVÝCH SOUBORŮ
 // ============================================================
 
-// Hotové titulky jsou pouze v paměti serveru.
-// Žádné přihlašovací údaje se neukládají do veřejné URL.
+// Soubor má adresu podle SHA-256 svého obsahu. Nemá dvouhodinovou
+// expiraci ani náhodný token měněný při každém novém stažení.
+// SUBTITLE_CACHE_DIR lze nastavit na trvalý disk; běžný Render disk
+// je dočasný. Do veřejných URL ani do souborů neukládáme hesla.
+const SUBTITLE_CACHE_DIR = process.env.SUBTITLE_CACHE_DIR ||
+    path.join(os.tmpdir(), 'sosac-subtitle-files');
+const SUBTITLE_FILE_MAX_BYTES = 2 * 1024 * 1024;
+const SUBTITLE_SOURCE_CACHE_MAX = 256;
+const SUBTITLE_SOURCE_REFRESH_MS = 2 * 60 * 60 * 1000;
+const subtitleCacheSecret = crypto.randomBytes(32);
+const subtitleBySource = new Map();
+const subtitlePending = new Map();
 
-const READY_VTT_TTL = 2 * 60 * 60 * 1000;
-const READY_MAX_ENTRIES = 64;
-const READY_MAX_BYTES = 16 * 1024 * 1024;
-
-const readyCacheSecret = crypto.randomBytes(32);
-const readyByKey = new Map();
-const readyByToken = new Map();
-const readyPending = new Map();
-
-let readyCacheBytes = 0;
-
-function makeReadyKey(rawUrl, creds) {
-    return crypto
-        .createHmac('sha256', readyCacheSecret)
-        .update(JSON.stringify([
-            rawUrl,
-            creds.username,
-            creds.passMd5
-        ]))
+function subtitleSourceKey(sourceUrl, creds) {
+    return crypto.createHmac('sha256', subtitleCacheSecret)
+        .update(JSON.stringify([sourceUrl, creds.username, creds.passMd5]))
         .digest('hex');
 }
 
-function removeReadyEntry(entry) {
-    readyByKey.delete(entry.key);
-    readyByToken.delete(entry.token);
-    readyCacheBytes -= entry.body.length;
+function subtitleFilePath(hash) {
+    return path.join(SUBTITLE_CACHE_DIR, `${hash}.vtt`);
 }
 
-function pruneReadyCache() {
-    const now = Date.now();
-
-    for (const entry of readyByKey.values()) {
-        if (entry.expires <= now) {
-            removeReadyEntry(entry);
+async function readSubtitleFile(hash) {
+    try {
+        const body = await fs.promises.readFile(subtitleFilePath(hash));
+        if (body.length > SUBTITLE_FILE_MAX_BYTES ||
+            crypto.createHash('sha256').update(body).digest('hex') !== hash) {
+            return null;
         }
+        return body;
+    } catch (e) {
+        if (e.code === 'ENOENT') return null;
+        throw e;
     }
 }
 
-function getReadyEntry(key) {
-    const entry = readyByKey.get(key);
-
-    if (!entry) return null;
-
-    if (entry.expires <= Date.now()) {
-        removeReadyEntry(entry);
-        return null;
+async function storeSubtitleFile(body) {
+    if (!Buffer.isBuffer(body) || !body.length ||
+        body.length > SUBTITLE_FILE_MAX_BYTES) {
+        throw new Error('Neplatná velikost souboru titulků.');
     }
 
-    // Posun na konec Map = nedávno použitá položka.
-    readyByKey.delete(key);
-    readyByKey.set(key, entry);
+    const hash = crypto.createHash('sha256').update(body).digest('hex');
+    const existing = await readSubtitleFile(hash);
+    if (existing) return hash;
 
-    return entry;
-}
-
-function storeReadyEntry(key, body) {
-    pruneReadyCache();
-
-    if (body.length > READY_MAX_BYTES) {
-        throw new Error('Titulky jsou příliš velké pro cache.');
-    }
-
-    while (
-        readyByKey.size >= READY_MAX_ENTRIES ||
-        readyCacheBytes + body.length > READY_MAX_BYTES
-    ) {
-        const oldest = readyByKey.values().next().value;
-
-        if (!oldest) break;
-
-        removeReadyEntry(oldest);
-    }
-
-    const entry = {
-        key,
-        token: crypto.randomBytes(24).toString('hex'),
-        body,
-        expires: Date.now() + READY_VTT_TTL
-    };
-
-    readyByKey.set(key, entry);
-    readyByToken.set(entry.token, entry);
-    readyCacheBytes += body.length;
-
-    return entry;
-}
-
-async function prepareReadySubtitle(sub, creds, req) {
-    const proxyUrl = new URL(sub.url);
-    const rawUrl = proxyUrl.searchParams.get('url');
-
-    if (!rawUrl) {
-        throw new Error('Chybí zdrojová URL titulku.');
-    }
-
-    const sourceUrl = validateSubtitleUrl(rawUrl);
-    const key = makeReadyKey(sourceUrl, creds);
-
-    let entry = getReadyEntry(key);
-
-    if (entry) {
-        console.log('[READY VTT] Používám připravený soubor.');
-    } else {
-        let pending = readyPending.get(key);
-
-        if (!pending) {
-            pending = (async () => {
-                console.log('[READY VTT] Stahuji a převádím titulky...');
-
-                const body = await downloadSubtitleVtt(
-                    sourceUrl,
-                    creds.username,
-                    creds.passMd5
-                );
-
-                const stored = storeReadyEntry(key, body);
-
-                console.log(
-                    `[READY VTT] Připraveno: ${body.length} bajtů`
-                );
-
-                return stored;
-            })();
-
-            readyPending.set(key, pending);
-        }
-
-        try {
-            entry = await pending;
-        } finally {
-            if (readyPending.get(key) === pending) {
-                readyPending.delete(key);
-            }
-        }
-    }
-
-    const readyUrl = new URL(
-        `/ready-vtt/${entry.token}.vtt`,
-        getBaseUrl(req)
-    ).toString();
-
-    // Stabilní ID podle zdrojového souboru.
-    const sourceId = crypto
-        .createHash('sha256')
-        .update(sourceUrl)
-        .digest('hex')
-        .slice(0, 24);
-
-    return {
-        ...sub,
-        id: `ready_${sourceId}`,
-        url: readyUrl
-    };
-}
-
-// Stejné jednoduché odeslání jako u funkčního testu.
-// Tady už se NIC nestahuje ani nepřevádí.
-app.get('/ready-vtt/:token.vtt', (req, res) => {
-    const token = req.params.token;
-
-    if (!/^[a-f0-9]{48}$/.test(token)) {
-        return res.status(404)
-            .type('text/plain')
-            .send('Titulky nenalezeny.');
-    }
-
-    const entry = readyByToken.get(token);
-
-    if (!entry || entry.expires <= Date.now()) {
-        if (entry) removeReadyEntry(entry);
-
-        return res.status(404)
-            .type('text/plain')
-            .send('Připravené titulky již nejsou dostupné.');
-    }
-
-    console.log(
-        `[READY VTT] Odesílám hotový soubor: ${entry.body.length} bajtů`
+    await fs.promises.mkdir(SUBTITLE_CACHE_DIR, { recursive: true });
+    const temporary = path.join(
+        SUBTITLE_CACHE_DIR,
+        `.subtitle-${crypto.randomBytes(12).toString('hex')}.tmp`
     );
 
-    return sendVtt(req, res, entry.body);
+    try {
+        await fs.promises.writeFile(temporary, body, {
+            flag: 'wx', mode: 0o600
+        });
+        await fs.promises.rename(temporary, subtitleFilePath(hash));
+    } finally {
+        await fs.promises.rm(temporary, { force: true });
+    }
+    return hash;
+}
+
+async function prepareSubtitleFile(sub, creds, req) {
+    const sourceUrl = validateSubtitleUrl(sub.sourceUrl);
+    const key = subtitleSourceKey(sourceUrl, creds);
+    const cached = subtitleBySource.get(key);
+    // Obnovujeme pouze zdrojový obsah, nikdy neexpirujeme hotovou URL.
+    let hash = cached && Date.now() - cached.checkedAt < SUBTITLE_SOURCE_REFRESH_MS
+        ? cached.hash : null;
+
+    // Pokud soubor na disku chybí, znovu jej připravíme.
+    if (hash && !(await readSubtitleFile(hash))) {
+        subtitleBySource.delete(key);
+        hash = null;
+    }
+
+    if (!hash) {
+        let pending = subtitlePending.get(key);
+        if (!pending) {
+            pending = (async () => {
+                console.log('[SUBTITLE FILE] Stahuji a převádím titulky...');
+                const body = await downloadSubtitleVtt(
+                    sourceUrl, creds.username, creds.passMd5
+                );
+                const result = await storeSubtitleFile(body);
+                subtitleBySource.delete(key);
+                subtitleBySource.set(key, { hash: result, checkedAt: Date.now() });
+                while (subtitleBySource.size > SUBTITLE_SOURCE_CACHE_MAX) {
+                    subtitleBySource.delete(subtitleBySource.keys().next().value);
+                }
+                console.log(`[SUBTITLE FILE] Připraveno: ${body.length} bajtů`);
+                return result;
+            })();
+            subtitlePending.set(key, pending);
+        }
+        try {
+            hash = await pending;
+        } finally {
+            if (subtitlePending.get(key) === pending) {
+                subtitlePending.delete(key);
+            }
+        }
+    } else {
+        console.log('[SUBTITLE FILE] Používám připravený soubor.');
+        // Obnovení pořadí omezené paměťové mapy.
+        subtitleBySource.delete(key);
+        subtitleBySource.set(key, cached);
+    }
+
+    const publicPath = `/subtitle-file/v1/${hash}.vtt`;
+    return {
+        id: `file_v1_${hash}`,
+        lang: sub.lang,
+        file_name: sub.file_name,
+        url: new URL(publicPath, getBaseUrl(req)).toString()
+    };
+}
+
+async function prepareSubtitleTracks(req, foundSubs, creds) {
+    const prepared = await Promise.all(foundSubs.map(async sub => {
+        try {
+            return await prepareSubtitleFile(sub, creds, req);
+        } catch (e) {
+            console.error(`[SUBTITLE FILE] Příprava selhala: ${e.message}`);
+            return null;
+        }
+    }));
+    const seen = new Set();
+    return prepared.filter(sub => {
+        if (!sub || seen.has(sub.id)) return false;
+        seen.add(sub.id);
+        return true;
+    });
+}
+
+async function sendSubtitleResponse(req, res, foundSubs, creds) {
+    let subtitles = await prepareSubtitleTracks(req, foundSubs, creds);
+
+    // API může vrátit URL, která už nefunguje. Pokud se nepodařilo
+    // připravit ani jeden soubor, zkusíme původní HTML cestu.
+    if (!subtitles.length) {
+        const apiSource = foundSubs.find(sub =>
+            sub.sourceKind === 'player-api' && sub.videoId);
+        if (apiSource) {
+            console.log('[PLAYER API] Příprava selhala; zkouším HTML zálohu.');
+            const fallback = await fetchSubtitlesFromHtml(
+                apiSource.videoId, creds.username, creds.passMd5, req);
+            subtitles = await prepareSubtitleTracks(req, fallback, creds);
+        }
+    }
+
+    console.log('[FINAL RESPONSE]', JSON.stringify({
+        subtitles: subtitles.map(sub => ({
+            id: sub.id,
+            lang: sub.lang,
+            file_name: sub.file_name,
+            filePath: new URL(sub.url).pathname
+        }))
+    }, null, 2));
+    return res.json({ subtitles });
+}
+
+// Při načtení této adresy se již nic nestahuje ze Streamuj.
+// GET i HEAD čtou stejný hotový soubor.
+app.get('/subtitle-file/v1/:hash.vtt', async (req, res) => {
+    const hash = req.params.hash;
+    if (!/^[a-f0-9]{64}$/.test(hash)) {
+        return res.status(404).type('text/plain').send('Titulky nenalezeny.');
+    }
+
+    try {
+        const body = await readSubtitleFile(hash);
+        if (!body) {
+            console.log('[SUBTITLE FILE] Soubor není dostupný; obnovte titulky v přehrávači.');
+            return res.status(404).type('text/plain').send('Soubor není dostupný.');
+        }
+        console.log(`[SUBTITLE FILE] Odesílám hotový soubor: ${body.length} bajtů`);
+        return sendVtt(req, res, body);
+    } catch (e) {
+        console.error(`[SUBTITLE FILE] Čtení selhalo: ${e.message}`);
+        return res.status(500).type('text/plain').send('Chyba při čtení titulků.');
+    }
 });
 
 // ============================================================
@@ -1182,9 +1321,7 @@ app.get('/:config/subtitles/:type/:id/:extra?.json', async (req, res) => {
                 `[Movie] Vrácím ${uniqueSubtitles.length} titulků.`
             );
 
-            return res.json({
-                subtitles: uniqueSubtitles
-            });
+            return sendSubtitleResponse(req, res, uniqueSubtitles, creds);
         }
 
         // ----------------------------------------------------
@@ -1254,40 +1391,9 @@ app.get('/:config/subtitles/:type/:id/:extra?.json', async (req, res) => {
                 return res.json({ subtitles: [] });
             }
 
-            // Nejdřív stáhnout a převést.
-            // Teprve potom vrátit Stremiu URL hotového souboru.
-            const responseSubs = await Promise.all(
-                foundSubs.map(async sub => {
-                    try {
-                        return await prepareReadySubtitle(
-                            sub,
-                            creds,
-                            req
-                        );
-                    } catch (e) {
-                        console.error(
-                            `[READY VTT] Přednačítání selhalo: ${e.message}`
-                        );
-
-                        // Zachováme původní proxy jako fallback.
-                        return sub;
-                    }
-                })
-            );
-
-            // Bez přihlašovacích údajů a bez plných URL.
-            console.log('[FINAL RESPONSE]', JSON.stringify({
-                subtitles: responseSubs.map(sub => ({
-                    id: sub.id,
-                    lang: sub.lang,
-                    file_name: sub.file_name,
-                    ready: sub.url.includes('/ready-vtt/')
-                }))
-            }, null, 2));
-
-            return res.json({
-                subtitles: responseSubs
-            });
+            // Stejné předání jako u filmů: nejdřív hotový soubor,
+            // teprve potom jednoduchá veřejná URL pro Stremio.
+            return sendSubtitleResponse(req, res, foundSubs, creds);
         }
 
         console.log(`[Result] Nepodporovaný typ: ${type}`);
