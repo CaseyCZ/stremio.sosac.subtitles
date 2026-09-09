@@ -16,15 +16,7 @@ Doplněk funguje výhradně jako poskytovatel titulků (`subtitles`). Neposkytuj
 | iPhone IPA (sideload)            |   ✅   |    ✅    |
 | Google TV                        |   ✅   |    ✅    |
 | **Apple TV – KSPlayer**          | ⚠️ Některé | ❌ |
-
-**Apple TV – KSPlayer (verze doplňku 2.9.3):** Titulky fungují jen u některých filmů. U testovaného seriálu se v nabídce přehrávače neobjevují, přestože server titulkový soubor připraví a odešle. Podpora je stále ve vývoji.
-
-V samostatném diagnostickém addonu `stremio.TEST` se podle uživatelského testu titulky na Apple TV zobrazily. Soubor TEST 2 (Dead City VTT) je bajtově shodný se souborem epizody `156567` z hlavního doplňku; shodují se také explicitně nastavené HTTP hlavičky souboru. Přesná příčina rozdílného chování zatím není potvrzená.
-
-Diagnostické řádky `[SUBTITLE HTTP]` zaznamenávají začátek požadavku (`START`), dokončení odesílání (`FINISH`) nebo předčasné uzavření spojení (`CLOSED_BEFORE_FINISH`), metodu GET/HEAD a dobu v `elapsedMs`. `requestId` spojuje události jednoho HTTP požadavku; požadavek na soubor má vlastní ID a lze jej přiřadit pomocí hashe v `[FINAL RESPONSE]`. `FINISH` potvrzuje pouze odeslání ze serveru, nikoli zobrazení titulků klientem. Celá konfigurační URL ani přihlašovací údaje se do těchto řádků nezapisují.
-
 ---
-
 ## 🚀 Rychlá instalace
 
 ![Aktuální verze](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2FCaseyCZ%2Fstremio.sosac.subtitles%2FMaster%2Fpackage.json&query=%24.version&label=Aktu%C3%A1ln%C3%AD%20verze&color=blue&prefix=v)
@@ -36,18 +28,14 @@ Diagnostické řádky `[SUBTITLE HTTP]` zaznamenávají začátek požadavku (`S
 4. Stremio se otevře a nabídne potvrzení instalace.
 
 Údaje si můžeš na svém zařízení zapamatovat. Stránka také umožňuje **zobrazit nebo skrýt heslo** a **zkopírovat instalační odkaz**.
-
 ---
-
 ## ✨ Hlavní funkce
 
 * 💬 **České titulky pro filmy a seriály** – doplněk vyhledává odpovídající titulky podle identifikátorů Sosáče a Streamuj.tv.
 * 🎞️ **Převod SRT → WebVTT** – server převádí titulky do formátu WebVTT včetně správného oddělení jednotlivých časových bloků.
 * 🧩 **Samostatný titulkový doplněk** – nezasahuje do výběru ani přehrávání video streamů ostatních doplňků.
 * ⚡ **Hosting na Renderu** – doplněk běží na cloudové platformě Render.
-
 ---
-
 ## 🔒 Ochrana soukromí
 
 Heslo se při generování instalačního odkazu převádí na MD5 hash přímo v prohlížeči. **MD5 však není šifrování** a tento hash je nutné považovat za citlivý přihlašovací údaj.
@@ -55,36 +43,3 @@ Heslo se při generování instalačního odkazu převádí na MD5 hash přímo 
 Instalační URL obsahuje uživatelské jméno a MD5 hash. Doplněk je používá při požadavcích na Streamuj.tv. **Instalační odkaz proto nesdílej veřejně ani neposílej do veřejných logů.** HTTPS chrání přenos, ale neznamená, že jsou údaje uvnitř URL zašifrované.
 
 Doplněk v této verzi nemá vlastní databázi uživatelských účtů. Pokud na konfigurační stránce povolíš zapamatování hesla, uloží se do `localStorage` v daném prohlížeči. Na sdíleném zařízení tuto možnost nepoužívej.
-
----
-
-## 🛠️ Lokální spuštění & vývoj
-
-Pokud si chceš kód upravit nebo spustit lokálně:
-
-### 1. Klonování repozitáře
-
-```bash
-git clone https://github.com/CaseyCZ/stremio.sosac.subtitles.git
-cd stremio.sosac.subtitles
-```
-
-### 2. Instalace závislostí
-
-```bash
-npm install
-```
-
-### 3. Spuštění doplňku
-
-```bash
-node index.js
-```
-
-Doplněk se ve výchozím nastavení spustí na portu **7000**, pokud není nastavená proměnná prostředí `PORT`.
-
-### 4. Otevření konfigurační stránky
-
-```text
-http://localhost:7000
-```
