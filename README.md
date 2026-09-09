@@ -15,9 +15,13 @@ Doplněk funguje výhradně jako poskytovatel titulků (`subtitles`). Neposkytuj
 | iOS Stremio Web (ikona na ploše) |   ✅   |    ✅    |
 | iPhone IPA (sideload)            |   ✅   |    ✅    |
 | Google TV                        |   ✅   |    ✅    |
-| **Apple TV – KSPlayer**          |   ❌   |    ❌    |
+| **Apple TV – KSPlayer**          | ⚠️ Některé | ❌ |
 
-**Apple TV:** Titulky se zatím nezobrazují. Podpora je stále ve vývoji.
+**Apple TV – KSPlayer (verze doplňku 2.9.3):** Titulky fungují jen u některých filmů. U testovaného seriálu se v nabídce přehrávače neobjevují, přestože server titulkový soubor připraví a odešle. Podpora je stále ve vývoji.
+
+V samostatném diagnostickém addonu `stremio.TEST` se podle uživatelského testu titulky na Apple TV zobrazily. Soubor TEST 2 (Dead City VTT) je bajtově shodný se souborem epizody `156567` z hlavního doplňku; shodují se také explicitně nastavené HTTP hlavičky souboru. Přesná příčina rozdílného chování zatím není potvrzená.
+
+Diagnostické řádky `[SUBTITLE HTTP]` zaznamenávají začátek požadavku (`START`), dokončení odesílání (`FINISH`) nebo předčasné uzavření spojení (`CLOSED_BEFORE_FINISH`), metodu GET/HEAD a dobu v `elapsedMs`. `requestId` spojuje události jednoho HTTP požadavku; požadavek na soubor má vlastní ID a lze jej přiřadit pomocí hashe v `[FINAL RESPONSE]`. `FINISH` potvrzuje pouze odeslání ze serveru, nikoli zobrazení titulků klientem. Celá konfigurační URL ani přihlašovací údaje se do těchto řádků nezapisují.
 
 ---
 
