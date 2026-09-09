@@ -17,12 +17,17 @@ Doplněk funguje výhradně jako poskytovatel titulků (`subtitles`). Neposkytuj
 ## ✅ Otestovaná kompatibilita
 | Platforma                        | Filmy | Seriály |
 | -------------------------------- | :---: | :-----: |
+| Google TV                        |   ✅   |    ✅    |
+| Android – [Play-store]([https://www.stremio.com/translation/cz/downloads](https://play.google.com/store/apps/details?id=com.stremio.one)/)           |   ✅   |    ✅    |  
 | PC Stremio Web                   |   ✅   |    ✅    |
 | PC oficiální aplikace            |   ✅   |    ✅    |
 | iOS Stremio Web (ikona na ploše) |   ✅   |    ✅    |
 | iPhone IPA (sideload)            |   ✅   |    ✅    |
-| Google TV                        |   ✅   |    ✅    |
-| **Apple TV – KSPlayer**          | ⚠️ Některé | ❌ |
+| MAC OS  - App + Web              |   ✅   |    ✅    |
+| Apple TV – Sideload IPA          |   ✅   |    ✅    |
+| Android – Sideload IPA           |   ✅   |    ✅    |
+
+👉 [Stremio - Downloads ](https://www.stremio.com/translation/cz/downloads/)
 
 ## ✨ Hlavní funkce
 * 💬 **České titulky pro filmy a seriály** – doplněk vyhledává odpovídající titulky podle identifikátorů Sosáče a Streamuj.tv.
