@@ -4,6 +4,8 @@ const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
+const { AsyncLocalStorage } = require('async_hooks');
+const { addonBuilder, getRouter } = require('stremio-addon-sdk');
 
 const app = express();
 // Seznam odkazuje na připravené soubory; po restartu se musí načíst znovu.
@@ -28,7 +30,11 @@ const manifest = {
     types: ['movie', 'series'],
     idPrefixes: ['tt', 'sosac', 'sosac2', 'tmdb'],
     resources: ['subtitles'],
-    catalogs: []
+    catalogs: [],
+    behaviorHints: {
+        configurable: true,
+        configurationRequired: true
+    }
 };
 
 // ============================================================
@@ -1088,17 +1094,23 @@ async function findPreparedSubtitles(req, targetData, creds) {
     return [];
 }
 
-function sendSubtitleResponse(req, res, subtitles) {
+// Stremio receives only the three fields required by the SDK.
+// file_name and sourceKind remain internal metadata, not protocol fields.
+function buildSubtitleResponse(req, res, subtitles) {
+    const result = { subtitles: subtitles.map(sub => ({
+        id: sub.id,
+        lang: sub.lang,
+        url: sub.url
+    })) };
     console.log('[FINAL RESPONSE]', JSON.stringify({
         requestId: res.locals.subtitleRequestId,
-        subtitles: subtitles.map(sub => ({
+        subtitles: result.subtitles.map(sub => ({
             id: sub.id,
             lang: sub.lang,
-            file_name: sub.file_name,
             filePath: new URL(sub.url).pathname
         }))
     }, null, 2));
-    return res.json({ subtitles });
+    return result;
 }
 
 // Krátká cache úspěšných výsledků šetří opakované dotazy na obě API.
@@ -1106,9 +1118,9 @@ function sendSubtitleResponse(req, res, subtitles) {
 // neukládáme a před použitím ověřujeme, že soubory stále existují.
 const subtitleLookupCache = new Map();
 const subtitleLookupPending = new Map();
-async function resolveSubtitleRequest(req, creds, lookup) {
+async function resolveSubtitleRequest(req, creds, identity, lookup) {
     const key = subtitleSourceKey(JSON.stringify([
-        getBaseUrl(req), req.params.type, req.params.id
+        getBaseUrl(req), identity.type, identity.id
     ]), creds);
     const cached = subtitleLookupCache.get(key);
     if (cached && Date.now() - cached.createdAt < 2 * 60 * 1000) {
@@ -1332,26 +1344,140 @@ button:focus-visible, input:focus-visible { outline: 2px solid #38bdf8; outline-
 });
 
 // ============================================================
-// MANIFEST
+// STREMIO SDK: MANIFEST AND SUBTITLE RESOURCE
 // ============================================================
+// The SDK owns the subtitle resource routing and handler interface.
+// A small Express adapter preserves the existing username:MD5 installation
+// URLs and accepts both path-style and query-style extra parameters.
+// The custom configuration page remains unchanged.
+const subtitleRequestContext = new AsyncLocalStorage();
+const builder = new addonBuilder(manifest);
 
-app.get('/manifest.json', (req, res) => {
-    res.setHeader('Access-Control-Allow-Origin', '*');
+function normalizeSubtitleExtras(extra) {
+    const normalized = {};
+    if (!isRecord(extra)) return normalized;
+    for (const [key, rawValue] of Object.entries(extra)) {
+        const value = Array.isArray(rawValue) ? rawValue[0] : rawValue;
+        if (typeof value !== 'string') continue;
+        normalized[key] = value;
+    }
+    if (normalized.videoHash) normalized.videoHash = normalized.videoHash.trim().toLowerCase();
+    if (normalized.videoSize) normalized.videoSize = normalized.videoSize.trim();
+    return normalized;
+}
 
-    res.json({
-        ...manifest,
-        behaviorHints: {
-            configurable: true,
-            configurationRequired: true
+// The SDK expects /subtitles/type/id/filename=...&videoHash=....json.
+// Some clients send the same parameters after .json instead. Normalize that
+// variant before the SDK router parses it. Decode once and re-encode once,
+// so an encoded & in a filename cannot become a parameter separator.
+function normalizeSubtitleRequestUrl(req, res, next) {
+    if (req.url.length > 8192) {
+        return res.status(414).type('text/plain').send('Požadavek je příliš dlouhý.');
+    }
+    const question = req.url.indexOf('?');
+    if (question === -1) return next();
+    const pathname = req.url.slice(0, question);
+    const match = /^\/subtitles\/[^/]+\/[^/]+(?:\/([^/]*))?\.json$/i.exec(pathname);
+    if (!match) return next();
+
+    const extras = new URLSearchParams(match[1] || '');
+    const query = new URLSearchParams(req.url.slice(question + 1));
+    for (const [key, value] of query) {
+        // The canonical path takes precedence when both forms are supplied.
+        if (!extras.has(key)) extras.append(key, value);
+    }
+    const basePath = match[1] === undefined
+        ? pathname.slice(0, -5) : pathname.slice(0, -(match[1].length + 6));
+    const encoded = Array.from(extras.entries())
+        .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`)
+        .join('&');
+    req.url = basePath + (encoded ? '/' + encoded : '') + '.json';
+    return next();
+}
+
+builder.defineSubtitlesHandler(async function(args) {
+    const context = subtitleRequestContext.getStore();
+    const req = context && context.req;
+    const res = context && context.res;
+    const { type, id } = args;
+    const extra = normalizeSubtitleExtras(args.extra);
+    const config = isRecord(args.config) ? args.config : {};
+    const creds = typeof config.username === 'string' && typeof config.passMd5 === 'string'
+        ? parseUserConfig(`${config.username}:${config.passMd5}`) : null;
+
+    if (!req || !res) throw new Error('Chybí kontext HTTP požadavku.');
+    traceSubtitleHttp(req, res, { resource: 'subtitles', type, id });
+    if (!creds) return buildSubtitleResponse(req, res, []);
+
+    try {
+        const idParts = id.split(':');
+        const cleanId = idParts[0].replace(/^(sosac_m_|sosac2_|sosac_)/, '');
+        const season = idParts[1] ? normalizeInt(idParts[1]) : null;
+        const episode = idParts[2] ? normalizeInt(idParts[2]) : null;
+        console.log('');
+        console.log('========================================');
+        console.log(`[Subtitle Request] type=${type}, id=${id}`);
+        console.log(`[Subtitle Request] cleanId=${cleanId}, season=${season}, episode=${episode}`);
+        console.log(`[Subtitle Request] extraKeys=${Object.keys(extra).join(',') || 'none'}`);
+        console.log('========================================');
+
+        // Preserve the existing Sosáč IDs, including :movies and :episodes.
+        const validIdShape = idParts.length === 1 ||
+            (idParts.length === 2 &&
+                idParts[1] === (type === 'movie' ? 'movies' : 'episodes')) ||
+            (type === 'series' && idParts.length === 3 &&
+                season !== null && episode !== null);
+        if (!/^(?:\d+|tt\d+)$/.test(cleanId) ||
+            !['movie', 'series'].includes(type) || !validIdShape) {
+            return buildSubtitleResponse(req, res, []);
         }
-    });
+
+        // Extras are passed through the SDK interface. Sosáč IDs identify the
+        // actual item; no unverified videoHash-to-Streamuj mapping is invented.
+        const subtitles = await resolveSubtitleRequest(req, creds, { type, id }, async () => {
+            const targetData = type === 'movie'
+                ? await fetchSosacMovie(cleanId, creds.username, creds.passMd5)
+                : await resolveSosacEpisode(cleanId, season, episode, creds);
+            if (!targetData) return [];
+            return findPreparedSubtitles(req, targetData, creds);
+        });
+        return buildSubtitleResponse(req, res, subtitles);
+    } catch (e) {
+        console.error('[Handler Error]:', e.message);
+        return buildSubtitleResponse(req, res, []);
+    }
 });
 
-app.get('/:config/manifest.json', (req, res) => {
-    res.setHeader('Access-Control-Allow-Origin', '*');
+const addonInterface = builder.getInterface();
 
+// The official router handles the resource and serializes its SDK response.
+// Its built-in JSON-config prefix is not suitable for our existing legacy
+// username:MD5 URLs, so Express removes that prefix and supplies a structured
+// config object through this per-request adapter. No global credential state.
+const sdkRouter = getRouter({
+    manifest: addonInterface.manifest,
+    get(resource, type, id, extra) {
+        const context = subtitleRequestContext.getStore();
+        const config = context && context.creds ? context.creds : {};
+        return Promise.resolve(addonInterface.get(resource, type, id, extra, config))
+            .then(result => {
+                // Keep the original exact byte count for clients and diagnostics.
+                if (context && context.res && !result.redirect) {
+                    context.res.setHeader('Content-Length',
+                        Buffer.byteLength(JSON.stringify(result), 'utf8'));
+                }
+                return result;
+            });
+    }
+});
+
+// Keep the same addon ID and the existing installation URLs.
+app.get('/manifest.json', (req, res) => {
+    res.json(addonInterface.manifest);
+});
+app.get('/:config/manifest.json', (req, res) => {
     res.json({
-        ...manifest,
+        ...addonInterface.manifest,
         behaviorHints: {
             configurable: true,
             configurationRequired: false
@@ -1359,73 +1485,11 @@ app.get('/:config/manifest.json', (req, res) => {
     });
 });
 
-// ============================================================
-// SUBTITLE RESOURCE
-// ============================================================
-
-app.get('/:config/subtitles/:type/:id/:extra?.json', async (req, res) => {
-    traceSubtitleHttp(req, res, {
-        resource: 'subtitles', type: req.params.type, id: req.params.id
-    });
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Headers', '*');
-    res.setHeader('Content-Type', 'application/json');
-
+app.use('/:config', (req, res, next) => {
     const creds = parseUserConfig(req.params.config);
-
-    if (!creds) {
-        return res.json({ subtitles: [] });
-    }
-
-    const { type, id } = req.params;
-
-    try {
-        const idParts = id.split(':');
-
-        const cleanId = idParts[0]
-            .replace(/^(sosac_m_|sosac2_|sosac_)/, '');
-
-        const season = idParts[1]
-            ? normalizeInt(idParts[1])
-            : null;
-
-        const episode = idParts[2]
-            ? normalizeInt(idParts[2])
-            : null;
-
-        console.log('');
-        console.log('========================================');
-        console.log(`[Subtitle Request] type=${type}, id=${id}`);
-        console.log(`[Subtitle Request] cleanId=${cleanId}, season=${season}, episode=${episode}`);
-        console.log('========================================');
-
-        // Sosáč používá také ID filmu/epizody se slovní příponou.
-        // Např. sosac2_156567:episodes nebo sosac2_33124:movies.
-        const validIdShape = idParts.length === 1 ||
-            (idParts.length === 2 &&
-                idParts[1] === (type === 'movie' ? 'movies' : 'episodes')) ||
-            (type === 'series' && idParts.length === 3 &&
-                season !== null && episode !== null);
-
-        if (!/^(?:\d+|tt\d+)$/.test(cleanId) ||
-            !['movie', 'series'].includes(type) ||
-            !validIdShape) {
-            return sendSubtitleResponse(req, res, []);
-        }
-
-        const subtitles = await resolveSubtitleRequest(req, creds, async () => {
-            const targetData = type === 'movie'
-                ? await fetchSosacMovie(cleanId, creds.username, creds.passMd5)
-                : await resolveSosacEpisode(cleanId, season, episode, creds);
-            if (!targetData) return [];
-            return findPreparedSubtitles(req, targetData, creds);
-        });
-        return sendSubtitleResponse(req, res, subtitles);
-
-    } catch (e) {
-        console.error('[Handler Error]:', e.message);
-        return res.json({ subtitles: [] });
-    }
+    subtitleRequestContext.run({ req, res, creds }, () => {
+        normalizeSubtitleRequestUrl(req, res, () => sdkRouter(req, res, next));
+    });
 });
 
 // ============================================================
