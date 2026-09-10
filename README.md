@@ -19,13 +19,13 @@ Doplněk funguje výhradně jako poskytovatel titulků (`subtitles`). Neposkytuj
 | -------------------------------- | :---: | :-----: |
 | Google TV                        |   ✅   |    ✅    |
 | Android – Play-Store             |   ✅   |    ✅    |  
+| Android – Sideload apk           |   ✅   |    ✅    |
 | PC Stremio Web                   |   ✅   |    ✅    |
 | PC oficiální aplikace            |   ✅   |    ✅    |
 | iOS Stremio Web (ikona na ploše) |   ✅   |    ✅    |
 | iPhone IPA (sideload)            |   ✅   |    ✅    |
 | MAC OS  - App + Web              |   ✅   |    ✅    |
 | Apple TV – Sideload IPA          |   ✅   |    ✅    |
-| Android – Sideload IPA           |   ✅   |    ✅    |
 
 👉 [Stremio - Downloads ](https://www.stremio.com/translation/cz/downloads/)
 
