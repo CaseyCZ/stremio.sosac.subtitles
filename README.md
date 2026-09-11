@@ -1,56 +1,59 @@
-# 🎬 Sosáč + Streamuj.tv – CZ Titulky pro Stremio
+# 💬 Sosáč + Streamuj.tv – CZ Titulky pro Stremio
 
-Neoficiální doplněk pro [Stremio](https://www.stremio.com/), který poskytuje české a další dostupné titulky ze zdrojů **Sosáč.tv** a **Streamuj.tv**.
-
-Doplněk funguje pouze jako poskytovatel titulků (`subtitles`). Video streamy neposkytuje.
-
-## 🚀 Rychlá instalace
+Neoficiální komunitní addon pro **Stremio**, který poskytuje titulky ze zdrojů **Sosáč.tv** a **Streamuj.tv**.
 
 ![Aktuální verze](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2FCaseyCZ%2Fstremio.sosac.subtitles%2FMaster%2Fpackage.json&query=%24.version&label=Aktu%C3%A1ln%C3%AD%20verze&color=blue&prefix=v)
 
-👉 **[CZ Titulky pro Stremio – konfigurace](https://130.61.49.108:8443/configure)**
+## 🚀 Rychlá instalace
 
-1. Otevři konfigurační stránku.
-2. Zadej přihlašovací údaje ze **Sosáč.tv**.
-3. Klikni na **Vygenerovat instalační odkaz**.
-4. Klikni na **Instalovat do Stremio**.
+👉 **[Otevřít konfiguraci addonu](https://130.61.49.108:8443/configure)**
 
-Hlavní Sosáč addon:
+1. Zadej přihlašovací údaje ze **Sosáč.tv**.
+2. Klikni na **Vygenerovat instalační odkaz**.
+3. Odkaz můžeš zkopírovat nebo addon rovnou nainstalovat do Stremia.
 
-👉 **https://130.61.49.108/configure**
+Hlavní Sosáč addon: **[Sosáč + Streamuj.tv pro Stremio](https://130.61.49.108/configure)**
 
 ## ✨ Hlavní funkce
 
 - 💬 titulky pro filmy a seriály
-- 🇨🇿 čeština, 🇸🇰 slovenština a další jazyky podle dostupnosti Streamuj.tv
-- 🎞️ převod SRT → WebVTT
+- 🇨🇿 čeština, 🇸🇰 slovenština a další jazyky podle dostupnosti
+- 🎞️ převod titulků do formátu vhodného pro Stremio
 - 🔗 podpora IMDb a Sosáč identifikátorů
-- 📁 titulky jsou připravené na serveru a poskytované přes veřejnou HTTPS URL
-- ⚡ cache opakovaných požadavků a připravených souborů
-- 🧩 samostatný addon, který nezasahuje do přehrávání videa
+- ⚡ rychlejší opakované načítání již připravených titulků
+- 🧩 samostatný addon, který nezasahuje do výběru video streamu
 
-## ✅ Otestovaná kompatibilita
+## ✅ Kompatibilita
 
 | Platforma | Filmy | Seriály |
 | --- | :---: | :---: |
 | Google TV | ✅ | ✅ |
-| Android – Play Store | ✅ | ✅ |
-| Android – sideload APK | ✅ | ✅ |
+| Android | ✅ | ✅ |
 | PC Stremio Web | ✅ | ✅ |
-| PC oficiální aplikace | ✅ | ✅ |
+| PC aplikace | ✅ | ✅ |
 | iOS Stremio Web | ✅ | ✅ |
 | iPhone IPA | ✅ | ✅ |
 | macOS App + Web | ✅ | ✅ |
 | Apple TV – sideload IPA | ✅ | ✅ |
 
-## 🔒 Ochrana soukromí
+## 🔒 Soukromí a přihlášení
 
-Heslo se při generování instalačního odkazu převádí na MD5 hash přímo v prohlížeči. **MD5 není šifrování** a hash je nutné považovat za citlivý přihlašovací údaj.
+Konfigurační stránka vytvoří instalační odkaz s nastavením uloženým jako **Base64URL**. Heslo proto není v odkazu běžně čitelné na první pohled.
 
-Instalační URL obsahuje uživatelské jméno a MD5 hash. Proto instalační odkaz nesdílej veřejně ani jej nevkládej do screenshotů nebo logů.
+**Base64URL není šifrování.** Instalační odkaz obsahuje citlivé přihlašovací údaje a neměl by se veřejně sdílet, posílat do logů ani zveřejňovat na screenshotech.
 
-HTTPS chrání přenos mezi klientem a serverem. Doplněk nemá vlastní databázi uživatelských účtů.
+## 📚 Reference
+
+- [Sosáč official Kodi repository](https://sosac.tv/sosacRepo/)
+- [kodi-czsk / plugin.video.sosac.ph](https://github.com/kodi-czsk/plugin.video.sosac.ph)
+- [Matt5454 / Sosio](https://github.com/Matt5454/Sosio)
+- [Stremio Addon SDK / dokumentace](https://stremio.github.io/stremio-addon-guide/)
+- [Sosáč + Streamuj.tv pro Stremio](https://github.com/CaseyCZ/stremio.sosac)
+- [Sosáč.tv](https://sosac.tv/)
+- [Streamuj.tv](https://www.streamuj.tv/)
 
 ## ⚠️ Upozornění
 
-Tento projekt je neoficiální komunitní addon. Není oficiálně spojen ani podporován službami **Stremio, Sosáč.tv ani Streamuj.tv**.
+Projekt je neoficiální komunitní addon a není oficiálně spojen ani podporován službami **Stremio, Sosáč.tv ani Streamuj.tv**.
+
+Dostupnost titulků závisí na externích službách a konkrétním videu.
