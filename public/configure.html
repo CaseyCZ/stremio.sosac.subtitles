@@ -10,6 +10,7 @@
     body{margin:0;min-height:100vh;display:grid;place-items:center;padding:24px;background:radial-gradient(circle at top,#172554 0,#0b1020 42%,#070b14 100%);font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:var(--text)}
     .wrap{width:min(100%,560px)}
     .card{background:rgba(17,24,39,.96);border:1px solid var(--border);border-radius:22px;padding:28px;box-shadow:0 24px 70px rgba(0,0,0,.45)}
+    .badges{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
     .badge{display:inline-flex;align-items:center;gap:7px;padding:6px 10px;border:1px solid #1d4ed8;border-radius:999px;background:#0f1f46;color:#bfdbfe;font-size:.78rem;font-weight:700}
     h1{margin:14px 0 6px;font-size:1.65rem;line-height:1.15}
     .lead{margin:0 0 24px;color:var(--muted);line-height:1.5}
@@ -35,7 +36,10 @@
 <body>
   <main class="wrap">
     <section class="card">
-      <span class="badge">💬 Titulkový addon</span>
+      <div class="badges">
+        <span class="badge">💬 Titulkový addon</span>
+        <span class="badge">📦 Verze 2.9.6</span>
+      </div>
       <h1>Sosáč + Streamuj.tv – CZ Titulky</h1>
       <p class="lead">Přihlas se k Sosáči a vygeneruj instalační odkaz pro Stremio.</p>
 
