@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="cs">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Sosáč + Streamuj.tv – CZ Titulky pro Stremio</title>
+  <style>
+    :root{color-scheme:dark;--bg:#0b1020;--panel:#111827;--panel2:#172033;--border:#2a3850;--text:#f8fafc;--muted:#94a3b8;--accent:#38bdf8;--accent2:#0284c7;--ok:#86efac}
+    *{box-sizing:border-box}
+    body{margin:0;min-height:100vh;display:grid;place-items:center;padding:24px;background:radial-gradient(circle at top,#172554 0,#0b1020 42%,#070b14 100%);font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:var(--text)}
+    .wrap{width:min(100%,560px)}
+    .card{background:rgba(17,24,39,.96);border:1px solid var(--border);border-radius:22px;padding:28px;box-shadow:0 24px 70px rgba(0,0,0,.45)}
+    .badge{display:inline-flex;align-items:center;gap:7px;padding:6px 10px;border:1px solid #1d4ed8;border-radius:999px;background:#0f1f46;color:#bfdbfe;font-size:.78rem;font-weight:700}
+    h1{margin:14px 0 6px;font-size:1.65rem;line-height:1.15}
+    .lead{margin:0 0 24px;color:var(--muted);line-height:1.5}
+    .field{margin:16px 0}
+    label{display:block;margin-bottom:7px;color:#dbeafe;font-size:.9rem;font-weight:650}
+    input{width:100%;min-height:46px;border:1px solid var(--border);border-radius:12px;background:#0b1220;color:var(--text);padding:0 13px;font:inherit;outline:none}
+    input:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(56,189,248,.12)}
+    .input-row,.result-row{display:flex;gap:8px;align-items:stretch}
+    .input-row input,.result-row input{min-width:0;flex:1}
+    button,.btn{border:0;border-radius:12px;background:var(--accent2);color:#fff;font:inherit;font-weight:750;cursor:pointer;text-decoration:none;text-align:center;transition:.15s ease}
+    button:hover,.btn:hover{filter:brightness(1.12)}
+    .toggle,.copy{flex:0 0 auto;padding:0 13px;background:#243149;border:1px solid var(--border)}
+    .primary{width:100%;min-height:48px;margin-top:10px;font-size:1rem}
+    .note{margin:18px 0;padding:12px 14px;border:1px solid var(--border);border-radius:12px;background:var(--panel2);color:#cbd5e1;font-size:.86rem;line-height:1.45}
+    #result{display:none;margin-top:22px;padding-top:20px;border-top:1px solid var(--border)}
+    #installUrl{font-size:.78rem}
+    .btn{display:block;width:100%;padding:13px;margin-top:10px}
+    #status{min-height:20px;margin-top:12px;color:var(--ok);font-size:.86rem}
+    .foot{margin:14px 4px 0;color:#64748b;text-align:center;font-size:.76rem}
+    @media(max-width:520px){body{padding:14px}.card{padding:21px}.input-row,.result-row{gap:6px}.toggle,.copy{padding:0 10px}}
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <section class="card">
+      <span class="badge">💬 Titulkový addon</span>
+      <h1>Sosáč + Streamuj.tv – CZ Titulky</h1>
+      <p class="lead">Přihlas se k Sosáči a vygeneruj instalační odkaz pro Stremio.</p>
+
+      <div class="field">
+        <label for="username">Sosáč uživatel</label>
+        <input id="username" autocomplete="username" placeholder="Uživatelské jméno">
+      </div>
+
+      <div class="field">
+        <label for="password">Sosáč heslo</label>
+        <div class="input-row">
+          <input id="password" type="password" autocomplete="current-password" placeholder="••••••••">
+          <button id="showPassword" class="toggle" type="button">Zobrazit</button>
+        </div>
+      </div>
+
+      <div class="note">Instalační konfigurace je v odkazu zapsaná jako Base64URL. Není běžně čitelná na první pohled, ale Base64 není šifrování, proto instalační odkaz nesdílej.</div>
+
+      <button id="generate" class="primary" type="button">Vygenerovat instalační odkaz</button>
+
+      <div id="result">
+        <div class="field">
+          <label for="installUrl">Instalační odkaz</label>
+          <div class="result-row">
+            <input id="installUrl" type="text" readonly spellcheck="false">
+            <button id="copyUrl" class="copy" type="button">Kopírovat</button>
+          </div>
+        </div>
+        <a id="stremioBtn" class="btn" href="#">Instalovat do Stremio</a>
+        <div id="status" role="status" aria-live="polite"></div>
+      </div>
+    </section>
+    <div class="foot">Neoficiální komunitní addon pro Stremio.</div>
+  </main>
+
+<script>
+function toBase64Url(obj){
+  const bytes=new TextEncoder().encode(JSON.stringify(obj));
+  let binary='';
+  bytes.forEach(b=>binary+=String.fromCharCode(b));
+  return btoa(binary).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+}
+
+function copyText(value,input,status){
+  if(!value)return;
+  if(navigator.clipboard&&navigator.clipboard.writeText){
+    navigator.clipboard.writeText(value).then(()=>status.textContent='Odkaz zkopírován.').catch(()=>fallback());
+  }else fallback();
+  function fallback(){
+    input.focus();input.select();
+    try{document.execCommand('copy');status.textContent='Odkaz zkopírován.';}
+    catch(e){status.textContent='Odkaz je označený. Zkopíruj ho ručně.';}
+  }
+}
+
+const password=document.getElementById('password');
+const showPassword=document.getElementById('showPassword');
+showPassword.addEventListener('click',()=>{
+  const show=password.type==='password';
+  password.type=show?'text':'password';
+  showPassword.textContent=show?'Skrýt':'Zobrazit';
+});
+
+document.getElementById('generate').addEventListener('click',()=>{
+  const username=document.getElementById('username').value.trim();
+  const passwordValue=password.value;
+  const status=document.getElementById('status');
+  document.getElementById('result').style.display='block';
+  if(!username||!passwordValue){status.textContent='Vyplň uživatelské jméno a heslo.';return;}
+  const encoded=toBase64Url({username,password:passwordValue});
+  const path=`/${encoded}/manifest.json`;
+  const manifest=`${location.origin}${path}`;
+  const install=`stremio://${location.host}${path}`;
+  document.getElementById('installUrl').value=manifest;
+  document.getElementById('stremioBtn').href=install;
+  status.textContent='Odkaz je připravený.';
+});
+
+document.getElementById('copyUrl').addEventListener('click',()=>{
+  const input=document.getElementById('installUrl');
+  copyText(input.value,input,document.getElementById('status'));
+});
+</script>
+</body>
+</html>
