@@ -1,12 +1,11 @@
 {
   "name": "stremio-sosac-subtitles",
-  "version": "2.9.5",
+  "version": "2.9.6",
   "description": "Stremio titulkový addon pro Sosáč a Streamuj.tv",
-  "main": "index.js",
+  "main": "server.js",
   "scripts": {
-    "start": "node index.js",
-    "start:oracle": "node oracle.js",
-    "pm2:oracle": "pm2 start ecosystem.config.js"
+    "start": "node server.js",
+    "pm2": "pm2 start ecosystem.config.js"
   },
   "dependencies": {
     "express": "^4.19.2",
