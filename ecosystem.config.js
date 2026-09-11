@@ -2,7 +2,7 @@ module.exports = {
   apps: [
     {
       name: 'stremio-subtitles',
-      script: './oracle.js',
+      script: './server.js',
       cwd: __dirname,
       autorestart: true,
       watch: false,
