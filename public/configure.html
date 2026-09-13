@@ -38,7 +38,7 @@
     <section class="card">
       <div class="badges">
         <span class="badge">💬 Titulkový addon</span>
-        <span class="badge">📦 Verze 2.9.6</span>
+        <span class="badge">📦 Verze 2.9.8</span>
       </div>
       <h1>Sosáč + Streamuj.tv – CZ Titulky</h1>
       <p class="lead">Přihlas se k Sosáči a vygeneruj instalační odkaz pro Stremio.</p>
@@ -110,7 +110,7 @@ document.getElementById('generate').addEventListener('click',()=>{
   document.getElementById('result').style.display='block';
   if(!username||!passwordValue){status.textContent='Vyplň uživatelské jméno a heslo.';return;}
   const encoded=toBase64Url({username,password:passwordValue});
-  const path=`/${encoded}/manifest.json`;
+  const path=`/stremio-sosac-subtitles/${encoded}/manifest.json`;
   const manifest=`${location.origin}${path}`;
   const install=`stremio://${location.host}${path}`;
   document.getElementById('installUrl').value=manifest;

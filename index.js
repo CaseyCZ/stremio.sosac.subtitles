@@ -1032,7 +1032,7 @@ async function prepareSubtitleFile(sub, creds, req) {
         subtitleBySource.set(key, cached);
     }
 
-    const publicPath = `/subtitle-file/v1/${hash}.vtt`;
+    const publicPath = `/stremio-sosac-subtitles/subtitle-file/v1/${hash}.vtt`;
     return {
         id: `file_v1_${hash}_${sub.lang}`,
         lang: sub.lang,
@@ -1292,7 +1292,7 @@ button:focus-visible, input:focus-visible { outline: 2px solid #38bdf8; outline-
         }
 
         var md5 = CryptoJS.MD5(p).toString();
-        var path = '/' + encodeURIComponent(u) + ':' + md5 + '/manifest.json';
+        var path = '/stremio-sosac-subtitles/' + encodeURIComponent(u) + ':' + md5 + '/manifest.json';
         var httpsUrl = window.location.origin + path;
         var stremioUrl = 'stremio://' + window.location.host + path;
 
