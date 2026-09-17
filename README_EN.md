@@ -4,7 +4,7 @@
 
 <p align="center">
   <a href="README.md"><img src="https://img.shields.io/badge/CZ-%C4%8Ce%C5%A1tina-172033?style=for-the-badge&labelColor=111827" alt="Czech" /></a>
-  <a href="README_EN.md"><img src="https://img.shields.io/badge/EN-English-38BDF8?style=for-the-badge&labelColor=0284C7" alt="English" /></a>
+  <img src="https://img.shields.io/badge/EN-English-38BDF8?style=for-the-badge&labelColor=0284C7" alt="English" />
 </p>
 
 <p align="center">
@@ -17,7 +17,6 @@
 
 <p align="center">
   <a href="https://130.61.49.108:8443/configure"><img src="https://img.shields.io/badge/Configure-Open-38BDF8?style=for-the-badge&labelColor=0284C7&logo=googlechrome&logoColor=white" alt="Open subtitle configuration" /></a>
-  <a href="https://github.com/CaseyCZ/stremio.sosac.subtitles"><img src="https://img.shields.io/badge/GitHub-Repository-38BDF8?style=for-the-badge&labelColor=0284C7&logo=github&logoColor=white" alt="Sosáč Subtitles GitHub" /></a>
 </p>
 
 ## About
