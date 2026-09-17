@@ -1,59 +1,57 @@
-# 💬 Sosáč + Streamuj.tv – CZ Titulky pro Stremio
+<p align="center">
+  <img src="readme-header.svg" alt="Sosáč Subtitles by CaseyCZ" width="100%" />
+</p>
 
-Neoficiální komunitní addon pro **Stremio**, který poskytuje titulky ze zdrojů **Sosáč.tv** a **Streamuj.tv**.
+<p align="center">
+  <a href="README.md"><img src="https://img.shields.io/badge/CZ-%C4%8Ce%C5%A1tina-38BDF8?style=for-the-badge&labelColor=0284C7" alt="Čeština" /></a>
+  <a href="README_EN.md"><img src="https://img.shields.io/badge/EN-English-172033?style=for-the-badge&labelColor=111827" alt="English" /></a>
+</p>
 
-![Aktuální verze](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2FCaseyCZ%2Fstremio.sosac.subtitles%2FMaster%2Fpackage.json&query=%24.version&label=Aktu%C3%A1ln%C3%AD%20verze&color=blue&prefix=v)
+<p align="center">
+  Samostatný neoficiální komunitní addon pro <strong>Stremio</strong>, který zajišťuje titulky ze zdrojů <strong>Sosáč.tv</strong> a <strong>Streamuj.tv</strong>.
+</p>
 
-## 🚀 Rychlá instalace
+<p align="center">
+  <img src="https://img.shields.io/badge/VERZE-v2.9.8-111827?style=flat-square&labelColor=111827&color=38BDF8" alt="Sosáč Subtitles verze 2.9.8" />
+</p>
 
-👉 **[Otevřít konfiguraci addonu](https://130.61.49.108:8443/configure)**
+<p align="center">
+  <a href="https://130.61.49.108:8443/configure"><img src="https://img.shields.io/badge/Konfigurace%20titulk%C5%AF-OTEV%C5%98%C3%8DT-38BDF8?style=for-the-badge&labelColor=0284C7" alt="Otevřít konfiguraci titulků" /></a>
+  <a href="https://github.com/CaseyCZ/stremio.sosac"><img src="https://img.shields.io/badge/Stremio%20Sos%C3%A1%C4%8D-OTEV%C5%98%C3%8DT-38BDF8?style=for-the-badge&labelColor=0284C7" alt="Hlavní Stremio Sosáč addon" /></a>
+  <a href="https://www.buymeacoffee.com/caseycz"><img src="https://img.shields.io/badge/Podpo%C5%99it%20CaseyCZ-OTEV%C5%98%C3%8DT-38BDF8?style=for-the-badge&labelColor=0284C7&logo=buymeacoffee&logoColor=white" alt="Podpořit CaseyCZ" /></a>
+</p>
 
-1. Zadej přihlašovací údaje ze **Sosáč.tv**.
-2. Klikni na **Vygenerovat instalační odkaz**.
-3. Odkaz můžeš zkopírovat nebo addon rovnou nainstalovat do Stremia.
+## O projektu
 
-Hlavní Sosáč addon: **[Sosáč + Streamuj.tv pro Stremio](https://130.61.49.108/configure)**
+**Sosáč Subtitles** je samostatný addon určený pouze pro titulky. Doplňuje titulky k filmům a seriálům ve Stremiu a funguje nezávisle na hlavním video addonu.
 
-## ✨ Hlavní funkce
+## Hlavní funkce
 
 - 💬 titulky pro filmy a seriály
-- 🇨🇿 čeština, 🇸🇰 slovenština a další jazyky podle dostupnosti
-- 🎞️ převod titulků do formátu vhodného pro Stremio
-- 🔗 podpora IMDb a Sosáč identifikátorů
-- ⚡ rychlejší opakované načítání již připravených titulků
-- 🧩 samostatný addon, který nezasahuje do výběru video streamu
+- 🇨🇿 čeština, slovenština a další jazyky podle dostupnosti
+- 🎞️ titulky připravené pro použití ve Stremiu
+- 🔗 rozpoznání titulu podle podporovaných identifikátorů
+- ⚡ rychlejší opakované načítání
+- 🧩 samostatný addon, který nemění výběr video streamu
+- 📱 funguje na běžných Stremio klientech včetně webu, desktopu, Androidu / Google TV a Apple zařízení
 
-## ✅ Kompatibilita
+## Video a titulky jsou zvlášť
 
-| Platforma | Filmy | Seriály |
-| --- | :---: | :---: |
-| Google TV | ✅ | ✅ |
-| Android | ✅ | ✅ |
-| PC Stremio Web | ✅ | ✅ |
-| PC aplikace | ✅ | ✅ |
-| iOS Stremio Web | ✅ | ✅ |
-| iPhone IPA | ✅ | ✅ |
-| macOS App + Web | ✅ | ✅ |
-| Apple TV – sideload IPA | ✅ | ✅ |
+- **Stremio Sosáč** — katalogy, metadata a video streamy
+- **Sosáč Subtitles** — samostatný addon pro titulky
 
-## 🔒 Soukromí a přihlášení
+<p>
+  <a href="https://github.com/CaseyCZ/stremio.sosac"><img src="https://img.shields.io/badge/Video-Stremio%20Sos%C3%A1%C4%8D-38BDF8?style=for-the-badge&labelColor=0284C7" alt="Stremio Sosáč" /></a>
+  <a href="https://130.61.49.108:8443/configure"><img src="https://img.shields.io/badge/Titulky-Konfigurace-38BDF8?style=for-the-badge&labelColor=0284C7" alt="Konfigurace titulků" /></a>
+</p>
 
-Konfigurační stránka vytvoří instalační odkaz s nastavením uloženým jako **Base64URL**. Heslo proto není v odkazu běžně čitelné na první pohled.
+## Důležité
 
-**Base64URL není šifrování.** Instalační odkaz obsahuje citlivé přihlašovací údaje a neměl by se veřejně sdílet, posílat do logů ani zveřejňovat na screenshotech.
+Projekt je neoficiální komunitní addon a není oficiálně spojen ani podporován službami Stremio, Sosáč.tv ani Streamuj.tv. Dostupnost titulků závisí na externích službách a konkrétním videu.
 
-## 📚 Reference
+## CaseyCZ
 
-- [Sosáč official Kodi repository](https://sosac.tv/sosacRepo/)
-- [kodi-czsk / plugin.video.sosac.ph](https://github.com/kodi-czsk/plugin.video.sosac.ph)
-- [Matt5454 / Sosio](https://github.com/Matt5454/Sosio)
-- [Stremio Addon SDK / dokumentace](https://stremio.github.io/stremio-addon-guide/)
-- [Sosáč + Streamuj.tv pro Stremio](https://github.com/CaseyCZ/stremio.sosac)
-- [Sosáč.tv](https://sosac.tv/)
-- [Streamuj.tv](https://www.streamuj.tv/)
-
-## ⚠️ Upozornění
-
-Projekt je neoficiální komunitní addon a není oficiálně spojen ani podporován službami **Stremio, Sosáč.tv ani Streamuj.tv**.
-
-Dostupnost titulků závisí na externích službách a konkrétním videu.
+<p align="center">
+  <a href="https://caseycz.github.io/"><img src="https://img.shields.io/badge/CaseyCZ%20Website-OTEV%C5%98%C3%8DT-38BDF8?style=for-the-badge&labelColor=0284C7" alt="CaseyCZ Website" /></a>
+  <a href="https://www.buymeacoffee.com/caseycz"><img src="https://img.shields.io/badge/Podpo%C5%99it%20CaseyCZ-Buy%20Me%20a%20Coffee-38BDF8?style=for-the-badge&labelColor=0284C7&logo=buymeacoffee&logoColor=white" alt="Podpořit CaseyCZ" /></a>
+</p>
