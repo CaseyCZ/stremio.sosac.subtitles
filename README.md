@@ -12,13 +12,12 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/VERZE-v2.9.8-111827?style=flat-square&labelColor=111827&color=38BDF8" alt="Sosáč Subtitles verze 2.9.8" />
+  <img src="https://img.shields.io/badge/VERZE-v2.9.8-38BDF8?style=for-the-badge&labelColor=0284C7" alt="Sosáč Subtitles verze 2.9.8" />
 </p>
 
 <p align="center">
-  <a href="https://130.61.49.108:8443/configure"><img src="https://img.shields.io/badge/Konfigurace%20titulk%C5%AF-OTEV%C5%98%C3%8DT-38BDF8?style=for-the-badge&labelColor=0284C7" alt="Otevřít konfiguraci titulků" /></a>
-  <a href="https://github.com/CaseyCZ/stremio.sosac"><img src="https://img.shields.io/badge/Stremio%20Sos%C3%A1%C4%8D-OTEV%C5%98%C3%8DT-38BDF8?style=for-the-badge&labelColor=0284C7" alt="Hlavní Stremio Sosáč addon" /></a>
-  <a href="https://www.buymeacoffee.com/caseycz"><img src="https://img.shields.io/badge/Podpo%C5%99it%20CaseyCZ-OTEV%C5%98%C3%8DT-38BDF8?style=for-the-badge&labelColor=0284C7&logo=buymeacoffee&logoColor=white" alt="Podpořit CaseyCZ" /></a>
+  <a href="https://130.61.49.108:8443/configure"><img src="https://img.shields.io/badge/Konfigurace-Otev%C5%99%C3%ADt-38BDF8?style=for-the-badge&labelColor=0284C7&logo=googlechrome&logoColor=white" alt="Otevřít konfiguraci titulků" /></a>
+  <a href="https://github.com/CaseyCZ/stremio.sosac.subtitles"><img src="https://img.shields.io/badge/GitHub-Repozit%C3%A1%C5%99-38BDF8?style=for-the-badge&labelColor=0284C7&logo=github&logoColor=white" alt="Sosáč Subtitles GitHub" /></a>
 </p>
 
 ## O projektu
@@ -35,23 +34,30 @@
 - 🧩 samostatný addon, který nemění výběr video streamu
 - 📱 funguje na běžných Stremio klientech včetně webu, desktopu, Androidu / Google TV a Apple zařízení
 
-## Video a titulky jsou zvlášť
+## Související projekt
 
-- **Stremio Sosáč** — katalogy, metadata a video streamy
-- **Sosáč Subtitles** — samostatný addon pro titulky
+Pro katalogy, metadata a video streamy použij hlavní **Stremio Sosáč** addon.
 
 <p>
-  <a href="https://github.com/CaseyCZ/stremio.sosac"><img src="https://img.shields.io/badge/Video-Stremio%20Sos%C3%A1%C4%8D-38BDF8?style=for-the-badge&labelColor=0284C7" alt="Stremio Sosáč" /></a>
-  <a href="https://130.61.49.108:8443/configure"><img src="https://img.shields.io/badge/Titulky-Konfigurace-38BDF8?style=for-the-badge&labelColor=0284C7" alt="Konfigurace titulků" /></a>
+  <a href="https://130.61.49.108/configure"><img src="https://img.shields.io/badge/Stremio%20Sos%C3%A1%C4%8D-Konfigurace-38BDF8?style=for-the-badge&labelColor=0284C7" alt="Stremio Sosáč konfigurace" /></a>
+  <a href="https://github.com/CaseyCZ/stremio.sosac"><img src="https://img.shields.io/badge/Stremio%20Sos%C3%A1%C4%8D-GitHub-38BDF8?style=for-the-badge&labelColor=0284C7&logo=github&logoColor=white" alt="Stremio Sosáč GitHub" /></a>
 </p>
 
 ## Důležité
 
 Projekt je neoficiální komunitní addon a není oficiálně spojen ani podporován službami Stremio, Sosáč.tv ani Streamuj.tv. Dostupnost titulků závisí na externích službách a konkrétním videu.
 
-## CaseyCZ
+## Podpora
 
 <p align="center">
-  <a href="https://caseycz.github.io/"><img src="https://img.shields.io/badge/CaseyCZ%20Website-OTEV%C5%98%C3%8DT-38BDF8?style=for-the-badge&labelColor=0284C7" alt="CaseyCZ Website" /></a>
   <a href="https://www.buymeacoffee.com/caseycz"><img src="https://img.shields.io/badge/Podpo%C5%99it%20CaseyCZ-Buy%20Me%20a%20Coffee-38BDF8?style=for-the-badge&labelColor=0284C7&logo=buymeacoffee&logoColor=white" alt="Podpořit CaseyCZ" /></a>
+</p>
+
+<p align="center">
+  <a href="https://www.buymeacoffee.com/caseycz"><img src="https://caseycz.github.io/support-qr.svg" width="150" alt="QR kód Buy Me a Coffee CaseyCZ" /></a><br>
+  <sub>Naskenuj QR kód nebo klikni na tlačítko.</sub>
+</p>
+
+<p align="center">
+  <a href="https://caseycz.github.io/"><img src="https://img.shields.io/badge/CaseyCZ%20Website-Otev%C5%99%C3%ADt-172033?style=flat-square&labelColor=111827" alt="CaseyCZ Website" /></a>
 </p>
