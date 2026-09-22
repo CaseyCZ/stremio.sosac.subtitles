@@ -12,7 +12,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/VERZE-v2.9.8-38BDF8?style=for-the-badge&labelColor=0284C7" alt="Sosáč Subtitles verze 2.9.8" />
+  <img src="https://img.shields.io/badge/VERZE-v3.0.0-38BDF8?style=for-the-badge&labelColor=0284C7" alt="Sosáč Subtitles verze 3.0.0" />
 </p>
 
 <p align="center">
@@ -21,15 +21,16 @@
 
 ## O projektu
 
-**Sosáč Subtitles** je samostatný addon určený pouze pro titulky. Doplňuje titulky k filmům a seriálům ve Stremiu a funguje nezávisle na hlavním video addonu.
+**Sosáč Subtitles** je samostatný addon určený pouze pro titulky. Od verze **3.0.0** dohledá titulky přes Streamuj Player API `d=19` a předá jejich URL přímo Stremiu; Oracle samotné titulkové soubory nepřenáší.
 
 ## Hlavní funkce
 
 - 💬 titulky pro filmy a seriály
 - 🇨🇿 čeština, slovenština a další jazyky podle dostupnosti
-- 🎞️ titulky připravené pro použití ve Stremiu
+- ↗️ přímé URL titulků ze Streamuj.tv
+- 🧭 Streamuj Player API `d=19` s HTML fallbackem pro dohledání URL
 - 🔗 rozpoznání titulu podle podporovaných identifikátorů
-- ⚡ rychlejší opakované načítání
+- ⚡ krátká cache výsledků bez ukládání titulkových souborů na server
 - 🧩 samostatný addon, který nemění výběr video streamu
 - 📱 funguje na běžných Stremio klientech včetně webu, desktopu, Androidu / Google TV a Apple zařízení
 
