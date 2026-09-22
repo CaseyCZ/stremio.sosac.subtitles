@@ -22,7 +22,7 @@ const manifest = {
     id: 'org.stremio.sosac.streamuj.subtitles.public',
     version: require('./package.json').version,
     name: 'Sosáč + Streamuj CZ Titulky',
-    description: 'Komunitní doplněk pro české titulky ze Sosáč / Streamuj.tv',
+    description: 'Komunitní doplněk s přímými titulky ze Sosáč / Streamuj.tv',
     types: ['movie', 'series'],
     idPrefixes: ['tt', 'sosac', 'sosac2', 'tmdb'],
     resources: ['subtitles'],
@@ -471,8 +471,8 @@ async function fetchSubtitlesFromPlayerApi(videoId, username, passMd5) {
     return parsePlayerSubtitleTracks(data, videoId);
 }
 
-// JSON je první cesta. HTML ponecháváme jako zálohu pro starší videa
-// nebo změnu dostupnosti API. Převod a předání jsou u obou stejné.
+// JSON Player API d=19 je první cesta. HTML zůstává pouze jako záloha
+// pro dohledání přímé URL u starších videí nebo při změně dostupnosti API.
 async function fetchSubtitlesFromStreamuj(videoId, username, passMd5, req) {
     try {
         const subtitles = await fetchSubtitlesFromPlayerApi(
@@ -1128,6 +1128,16 @@ const sdkRouter = getRouter({
 // Keep the same addon ID and the existing installation URLs.
 app.get('/manifest.json', (req, res) => {
     res.json(addonInterface.manifest);
+});
+
+app.get('/health', (req, res) => {
+    res.json({
+        ok: true,
+        version: addonInterface.manifest.version,
+        directSubtitles: true,
+        subtitleProxy: false,
+        streamujDevice: 19
+    });
 });
 app.get('/:config/manifest.json', (req, res) => {
     res.json({
