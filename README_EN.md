@@ -12,7 +12,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/VERSION-v2.9.8-38BDF8?style=for-the-badge&labelColor=0284C7" alt="Sosáč Subtitles version 2.9.8" />
+  <img src="https://img.shields.io/badge/VERSION-v3.0.0-38BDF8?style=for-the-badge&labelColor=0284C7" alt="Sosáč Subtitles version 3.0.0" />
 </p>
 
 <p align="center">
@@ -29,7 +29,7 @@
 - 🇨🇿 Czech, Slovak and other languages when available
 - 🎞️ subtitles prepared for Stremio playback
 - 🔗 title matching using supported identifiers
-- ⚡ faster repeated loading
+- ⚡ short result cache without storing subtitle files on the server
 - 🧩 separate add-on that does not alter video stream selection
 - 📱 works with common Stremio clients including web, desktop, Android / Google TV and Apple devices
 
