@@ -1542,13 +1542,23 @@ async function findDirectSubtitles(req, targetData, creds) {
             videoId, creds.username, creds.passMd5, req
         );
 
-        if (found.length && DIRECT_DIAGNOSTICS) {
+        const requestContext = subtitleRequestContext.getStore();
+        const isDirectTest = requestContext && requestContext.deliveryMode === 'direct-test';
+
+        if (found.length && (DIRECT_DIAGNOSTICS || isDirectTest)) {
             await diagnoseDirectSubtitleTracks(found, creds, req, videoId);
         }
 
-        const prepared = await prepareHybridSubtitleTracks(
-            req, found, creds
-        );
+        const prepared = isDirectTest
+            ? prepareDirectSubtitleTracks(found).map(sub => ({
+                ...sub,
+                delivery: 'direct-test'
+            }))
+            : await prepareHybridSubtitleTracks(req, found, creds);
+
+        if (isDirectTest && prepared.length) {
+            console.log(`[SUBTITLE DIRECT TEST] Streamuj ID ${videoId}: ${prepared.length} přímých stop`);
+        }
 
         if (prepared.length) {
             const hybridCount = prepared.filter(
@@ -1577,8 +1587,12 @@ function buildSubtitleResponse(req, res, subtitles) {
         }))
     };
 
+    const requestContext = subtitleRequestContext.getStore();
     console.log('[FINAL RESPONSE]', JSON.stringify({
         requestId: res.locals.subtitleRequestId,
+        mode: requestContext && requestContext.deliveryMode
+            ? requestContext.deliveryMode
+            : 'production-vtt',
         count: result.subtitles.length,
         tracks: subtitles.map(sub => ({
             id: sub.id,
@@ -2048,6 +2062,20 @@ app.get('/health', (req, res) => {
         streamujDevice: 19
     });
 });
+app.get('/:config/direct-test/manifest.json', (req, res) => {
+    res.setHeader('Cache-Control', 'no-store');
+    res.json({
+        ...addonInterface.manifest,
+        id: `${addonInterface.manifest.id}.directtest`,
+        name: `${addonInterface.manifest.name} [DIRECT TEST]`,
+        description: 'Diagnostická kopie addonu: vrací původní přímé Streamuj subtitle URL bez VTT fallbacku.',
+        behaviorHints: {
+            configurable: true,
+            configurationRequired: false
+        }
+    });
+});
+
 app.get('/:config/manifest.json', (req, res) => {
     res.json({
         ...addonInterface.manifest,
@@ -2058,9 +2086,29 @@ app.get('/:config/manifest.json', (req, res) => {
     });
 });
 
+// Paralelní diagnostický addon. Produkční manifest zůstává beze změny.
+// Direct test používá stejný lookup, ale vrací původní Streamuj URL a
+// automaticky zapíná detailní DIRECT DIAG pouze pro své requesty.
+app.use('/:config/direct-test', (req, res, next) => {
+    const creds = parseUserConfig(req.params.config);
+    subtitleRequestContext.run({
+        req,
+        res,
+        creds,
+        deliveryMode: 'direct-test'
+    }, () => {
+        normalizeSubtitleRequestUrl(req, res, () => sdkRouter(req, res, next));
+    });
+});
+
 app.use('/:config', (req, res, next) => {
     const creds = parseUserConfig(req.params.config);
-    subtitleRequestContext.run({ req, res, creds }, () => {
+    subtitleRequestContext.run({
+        req,
+        res,
+        creds,
+        deliveryMode: 'production-vtt'
+    }, () => {
         normalizeSubtitleRequestUrl(req, res, () => sdkRouter(req, res, next));
     });
 });
