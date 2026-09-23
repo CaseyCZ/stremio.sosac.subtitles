@@ -1,6 +1,9 @@
 const express = require('express');
 const https = require('https');
 const crypto = require('crypto');
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
 const { AsyncLocalStorage } = require('async_hooks');
 const { addonBuilder, getRouter } = require('stremio-addon-sdk');
 
@@ -20,6 +23,12 @@ const STREAMUJ_PLAYER_API = 'https://www.streamuj.tv/json_api_player.php';
 const CINEMETA_BASE_URL = 'https://v3-cinemeta.strem.io';
 const DIRECT_DIAGNOSTICS = process.env.DIRECT_DIAGNOSTICS !== '0';
 const DIRECT_DIAGNOSTIC_SAMPLE_BYTES = 16 * 1024;
+const HYBRID_APPLE_UA = /\bStremio-Apple\/0\.6\.5\b/i;
+const SUBTITLE_CACHE_DIR = process.env.SUBTITLE_CACHE_DIR ||
+    path.join(os.tmpdir(), 'sosac-subtitle-files');
+const SUBTITLE_FILE_MAX_BYTES = 2 * 1024 * 1024;
+const SUBTITLE_SOURCE_CACHE_MAX = 256;
+const SUBTITLE_SOURCE_REFRESH_MS = 2 * 60 * 60 * 1000;
 
 const manifest = {
     id: 'org.stremio.sosac.streamuj.subtitles.public',
@@ -1133,6 +1142,286 @@ async function resolveSosacEpisode(id, season, episode, creds, skipDirectLookup 
 }
 
 // ============================================================
+// HYBRIDNÍ KOMPATIBILITA – PŘÍMÝ ODKAZ + VTT FALLBACK
+// ============================================================
+
+function convertSrtToVtt(content) {
+    const text = String(content ?? '')
+        .replace(/^\uFEFF/, '')
+        .replace(/\r\n?/g, '\n')
+        .trim();
+
+    if (!text) throw new Error('Prázdný soubor titulků.');
+    if (/^WEBVTT(?:[ \t]|\n|$)/i.test(text)) return text + '\n';
+
+    const timeRegex =
+        /^(?:(\d+):)?([0-5]\d):([0-5]\d)[,.](\d{3})[ \t]*-->[ \t]*(?:(\d+):)?([0-5]\d):([0-5]\d)[,.](\d{3})([ \t]+.*)?$/;
+    const lines = text.split('\n');
+    const cues = [];
+    let current = null;
+
+    const formatTime = (h, m, s, ms) =>
+        String(Number(h || 0)).padStart(2, '0') + ':' + m + ':' + s + '.' + ms;
+
+    const finishCue = () => {
+        if (!current) return;
+        const body = current.body.join('\n')
+            .replace(/\n[ \t]*\n+/g, '\n')
+            .trim();
+        if (body) cues.push(current.time + '\n' + body);
+        current = null;
+    };
+
+    for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+
+        if (/^\d+$/.test(line.trim()) &&
+            i + 1 < lines.length &&
+            timeRegex.test(lines[i + 1].trim())) {
+            continue;
+        }
+
+        const match = timeRegex.exec(line.trim());
+        if (match) {
+            finishCue();
+            current = {
+                time: formatTime(match[1], match[2], match[3], match[4]) +
+                    ' --> ' +
+                    formatTime(match[5], match[6], match[7], match[8]) +
+                    (match[9] || ''),
+                body: []
+            };
+            continue;
+        }
+
+        if (current) {
+            if (line.includes('-->')) {
+                throw new Error('Neplatný časový řádek SRT.');
+            }
+            current.body.push(line);
+        } else if (line.trim()) {
+            throw new Error('Neznámý text před prvním titulkem.');
+        }
+    }
+
+    finishCue();
+    if (!cues.length) throw new Error('V SRT nebyly nalezeny žádné titulky.');
+    return 'WEBVTT\n\n' + cues.join('\n\n') + '\n';
+}
+
+async function downloadSubtitleVtt(rawUrl, username, passMd5) {
+    const targetUrl = validateSubtitleUrl(rawUrl);
+    const subData = await httpsGet(
+        targetUrl,
+        username,
+        passMd5,
+        {
+            'Accept': 'text/vtt,text/plain,application/x-subrip,*/*',
+            'Referer': 'https://www.streamuj.tv/'
+        }
+    );
+
+    if (!subData || /^\s*</.test(subData)) {
+        throw new Error('Streamuj nevrátil platná textová data titulků.');
+    }
+
+    const vtt = convertSrtToVtt(subData);
+    if (!/^WEBVTT(?:[ \t]|\n|$)/i.test(vtt)) {
+        throw new Error('Nepodařilo se vytvořit WebVTT.');
+    }
+
+    const body = Buffer.from(vtt, 'utf8');
+    if (!body.length || body.length > SUBTITLE_FILE_MAX_BYTES) {
+        throw new Error('Neplatná velikost WebVTT.');
+    }
+    return body;
+}
+
+const subtitleFileSecret = crypto.randomBytes(32);
+const subtitleBySource = new Map();
+const subtitleFilePending = new Map();
+
+function subtitleFileSourceKey(sourceUrl, creds) {
+    return crypto.createHmac('sha256', subtitleFileSecret)
+        .update(JSON.stringify([sourceUrl, creds.username, creds.passMd5]))
+        .digest('hex');
+}
+
+function subtitleFilePath(hash) {
+    return path.join(SUBTITLE_CACHE_DIR, `${hash}.vtt`);
+}
+
+async function readSubtitleFile(hash) {
+    try {
+        const body = await fs.promises.readFile(subtitleFilePath(hash));
+        if (!body.length || body.length > SUBTITLE_FILE_MAX_BYTES) return null;
+        if (crypto.createHash('sha256').update(body).digest('hex') !== hash) return null;
+        return body;
+    } catch (e) {
+        if (e.code === 'ENOENT') return null;
+        throw e;
+    }
+}
+
+async function storeSubtitleFile(body) {
+    const hash = crypto.createHash('sha256').update(body).digest('hex');
+    if (await readSubtitleFile(hash)) return hash;
+
+    await fs.promises.mkdir(SUBTITLE_CACHE_DIR, { recursive: true });
+    const temporary = path.join(
+        SUBTITLE_CACHE_DIR,
+        `.subtitle-${crypto.randomBytes(12).toString('hex')}.tmp`
+    );
+
+    try {
+        await fs.promises.writeFile(temporary, body, { flag: 'wx', mode: 0o600 });
+        try {
+            await fs.promises.rename(temporary, subtitleFilePath(hash));
+        } catch (e) {
+            if (e.code !== 'EEXIST') throw e;
+        }
+    } finally {
+        await fs.promises.rm(temporary, { force: true });
+    }
+    return hash;
+}
+
+async function prepareCompatibilitySubtitleFile(sub, creds, req) {
+    const sourceUrl = validateSubtitleUrl(sub.sourceUrl);
+    const key = subtitleFileSourceKey(sourceUrl, creds);
+    const cached = subtitleBySource.get(key);
+    let hash = cached &&
+        Date.now() - cached.checkedAt < SUBTITLE_SOURCE_REFRESH_MS
+        ? cached.hash : null;
+
+    if (hash && !(await readSubtitleFile(hash))) {
+        subtitleBySource.delete(key);
+        hash = null;
+    }
+
+    if (!hash) {
+        let pending = subtitleFilePending.get(key);
+        if (!pending) {
+            pending = (async () => {
+                const body = await downloadSubtitleVtt(
+                    sourceUrl, creds.username, creds.passMd5
+                );
+                const result = await storeSubtitleFile(body);
+                subtitleBySource.delete(key);
+                subtitleBySource.set(key, {
+                    hash: result,
+                    checkedAt: Date.now()
+                });
+                while (subtitleBySource.size > SUBTITLE_SOURCE_CACHE_MAX) {
+                    subtitleBySource.delete(subtitleBySource.keys().next().value);
+                }
+                console.log(`[SUBTITLE HYBRID FILE] Připraven WebVTT: ${body.length} B, hash=${result.slice(0, 12)}`);
+                return result;
+            })();
+            subtitleFilePending.set(key, pending);
+        }
+
+        try {
+            hash = await pending;
+        } finally {
+            if (subtitleFilePending.get(key) === pending) {
+                subtitleFilePending.delete(key);
+            }
+        }
+    }
+
+    const publicPath =
+        `/stremio-sosac-subtitles/subtitle-file/v1/${hash}.vtt`;
+    return {
+        id: `sosac-hybrid-${sub.lang || 'und'}-${hash.slice(0, 12)}`,
+        lang: sub.lang || 'und',
+        url: new URL(publicPath, getBaseUrl(req)).toString(),
+        delivery: 'proxy-vtt'
+    };
+}
+
+function shouldUseCompatibilityProxy(req, sub) {
+    const ua = String(req.headers['user-agent'] || '');
+    if (!HYBRID_APPLE_UA.test(ua)) return false;
+
+    const shape = subtitleUrlShape(sub.sourceUrl);
+    // Stremio-Apple 0.6.5 může vracet unsupportedFileType("NULL")
+    // u Streamuj URL bez přípony a bez názvu souboru.
+    return shape.pathExtension === 'none';
+}
+
+function sendVtt(req, res, body) {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Headers', '*');
+    res.setHeader('Cache-Control', 'public, max-age=3600');
+    res.setHeader('Content-Type', 'text/vtt; charset=utf-8');
+    res.setHeader('Content-Disposition', 'inline; filename="subtitles.vtt"');
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('Accept-Ranges', 'bytes');
+    res.setHeader(
+        'Access-Control-Expose-Headers',
+        'Content-Length, Content-Range, Accept-Ranges, Content-Disposition'
+    );
+
+    if (req.method === 'GET' &&
+        /^bytes=/i.test(req.headers.range || '') &&
+        !req.headers['if-range']) {
+        const ranges = req.range(body.length, { combine: true });
+
+        if (ranges === -1) {
+            res.setHeader('Content-Range', `bytes */${body.length}`);
+            res.setHeader('Content-Length', 0);
+            return res.status(416).end();
+        }
+
+        if (Array.isArray(ranges) &&
+            String(ranges.type).toLowerCase() === 'bytes' &&
+            ranges.length === 1) {
+            const { start, end } = ranges[0];
+            const part = body.subarray(start, end + 1);
+            res.status(206);
+            res.setHeader(
+                'Content-Range',
+                `bytes ${start}-${end}/${body.length}`
+            );
+            res.setHeader('Content-Length', part.length);
+            return res.end(part);
+        }
+    }
+
+    res.setHeader('Content-Length', body.length);
+    if (req.method === 'HEAD') return res.end();
+    return res.end(body);
+}
+
+app.get('/subtitle-file/v1/:hash.vtt', async (req, res) => {
+    const hash = String(req.params.hash || '');
+    traceSubtitleHttp(req, res, {
+        resource: 'hybrid-file',
+        hash: hash.slice(0, 12)
+    });
+
+    if (!/^[a-f0-9]{64}$/i.test(hash)) {
+        return res.status(404).type('text/plain').send('Titulky nenalezeny.');
+    }
+
+    try {
+        const body = await readSubtitleFile(hash.toLowerCase());
+        if (!body) {
+            return res.status(404)
+                .type('text/plain')
+                .send('Titulky už nejsou v cache.');
+        }
+
+        console.log(`[SUBTITLE HYBRID SERVE] hash=${hash.slice(0, 12)} bytes=${body.length} ua=${safeHeaderValue(req.headers['user-agent'], 120) || 'missing'}`);
+        return sendVtt(req, res, body);
+    } catch (e) {
+        console.error(`[SUBTITLE HYBRID SERVE] ${e.message}`);
+        return res.status(500).type('text/plain').send('Chyba titulků.');
+    }
+});
+
+// ============================================================
 // PŘÍMÉ TITULKY – STREAMUJ -> STREMIO
 // ============================================================
 
@@ -1189,6 +1478,54 @@ function prepareDirectSubtitleTracks(foundSubs) {
         .slice(0, 12);
 }
 
+async function prepareHybridSubtitleTracks(req, foundSubs, creds) {
+    const source = Array.isArray(foundSubs) ? foundSubs : [];
+    const direct = prepareDirectSubtitleTracks(source);
+    if (!source.length || !HYBRID_APPLE_UA.test(String(req.headers['user-agent'] || ''))) {
+        return direct;
+    }
+
+    const result = [];
+    const seen = new Set();
+
+    for (const sub of source.slice(0, 12)) {
+        let track = null;
+
+        if (shouldUseCompatibilityProxy(req, sub)) {
+            try {
+                track = await prepareCompatibilitySubtitleFile(sub, creds, req);
+                console.log(`[SUBTITLE HYBRID] Apple 0.6.5 + URL bez přípony -> VTT fallback (${sub.lang || 'und'})`);
+            } catch (e) {
+                console.error(`[SUBTITLE HYBRID] VTT fallback selhal: ${e.message}; vracím direct.`);
+            }
+        }
+
+        if (!track) {
+            try {
+                const url = validateSubtitleUrl(sub.sourceUrl);
+                track = {
+                    id: `sosac-direct-${sub.lang || 'und'}-${result.length + 1}`,
+                    lang: sub.lang || 'und',
+                    url,
+                    delivery: 'direct'
+                };
+            } catch (_) {
+                continue;
+            }
+        }
+
+        const key = `${track.lang}:${track.url}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        result.push(track);
+    }
+
+    const priority = { cze: 0, slk: 1, eng: 2 };
+    return result
+        .sort((a, b) => (priority[a.lang] ?? 3) - (priority[b.lang] ?? 3))
+        .slice(0, 12);
+}
+
 async function findDirectSubtitles(req, targetData, creds) {
     const extracted = extractAllStreamujIds(targetData);
 
@@ -1201,11 +1538,20 @@ async function findDirectSubtitles(req, targetData, creds) {
             await diagnoseDirectSubtitleTracks(found, creds, req, videoId);
         }
 
-        const direct = prepareDirectSubtitleTracks(found);
+        const prepared = await prepareHybridSubtitleTracks(
+            req, found, creds
+        );
 
-        if (direct.length) {
-            console.log(`[SUBTITLE DIRECT] Streamuj ID ${videoId}: ${direct.length} stop`);
-            return direct;
+        if (prepared.length) {
+            const hybridCount = prepared.filter(
+                sub => sub.delivery === 'proxy-vtt'
+            ).length;
+            if (hybridCount) {
+                console.log(`[SUBTITLE HYBRID] Streamuj ID ${videoId}: ${prepared.length} stop, proxy-vtt=${hybridCount}`);
+            } else {
+                console.log(`[SUBTITLE DIRECT] Streamuj ID ${videoId}: ${prepared.length} stop`);
+            }
+            return prepared;
         }
     }
 
@@ -1226,7 +1572,12 @@ function buildSubtitleResponse(req, res, subtitles) {
     console.log('[FINAL RESPONSE]', JSON.stringify({
         requestId: res.locals.subtitleRequestId,
         count: result.subtitles.length,
-        tracks: result.subtitles.map(sub => ({ id: sub.id, lang: sub.lang }))
+        tracks: subtitles.map(sub => ({
+            id: sub.id,
+            lang: sub.lang,
+            delivery: sub.delivery || (String(sub.url || '').includes('/subtitle-file/v1/') ? 'proxy-vtt' : 'direct'),
+            pathExtension: subtitleUrlShape(sub.url).pathExtension
+        }))
     }));
 
     return result;
@@ -1618,7 +1969,9 @@ app.get('/health', (req, res) => {
         ok: true,
         version: addonInterface.manifest.version,
         directSubtitles: true,
-        subtitleProxy: false,
+        subtitleProxy: true,
+        hybridSubtitles: true,
+        appleCompatibilityUa: 'Stremio-Apple/0.6.5',
         streamujDevice: 19
     });
 });
