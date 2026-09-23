@@ -966,10 +966,16 @@ async function fetchCinemetaMeta(type, imdbId) {
             'Accept': 'application/json,text/plain,*/*'
         }, 0, 10000);
         const data = safeJsonParse(raw);
-        return isRecord(data) && isRecord(data.meta) ? data.meta : null;
+        return {
+            meta: isRecord(data) && isRecord(data.meta) ? data.meta : null,
+            technicalError: false
+        };
     } catch (e) {
         console.warn(`[IMDB RESOLVE] Cinemeta ${type}/${imdbId} selhala: ${e.message}`);
-        return null;
+        return {
+            meta: null,
+            technicalError: true
+        };
     }
 }
 
@@ -1002,8 +1008,13 @@ async function resolveSosacIdFromImdb(type, imdbId, creds) {
     const cached = readImdbResolveCache(cacheKey);
     if (cached !== undefined) return cached;
 
-    const meta = await fetchCinemetaMeta(type, normalizedImdb);
+    const cinemetaResult = await fetchCinemetaMeta(type, normalizedImdb);
+    const meta = cinemetaResult.meta;
     if (!meta) {
+        if (cinemetaResult.technicalError) {
+            console.log(`[IMDB RESOLVE] ${type} ${normalizedImdb}: technická chyba Cinemety se necachuje`);
+            return null;
+        }
         writeImdbResolveCache(cacheKey, null, 30 * 60 * 1000);
         return null;
     }
@@ -1911,23 +1922,87 @@ builder.defineSubtitlesHandler(async function(args) {
         // actual item; no unverified videoHash-to-Streamuj mapping is invented.
         const subtitles = await resolveSubtitleRequest(req, creds, { type, id }, async () => {
             const isImdbRequest = /^tt\d{5,10}$/i.test(cleanId);
-            const targetId = isImdbRequest
-                ? await resolveSosacIdFromImdb(type, cleanId, creds)
-                : cleanId;
 
-            if (!targetId) return [];
+            if (!isImdbRequest) {
+                const targetData = type === 'movie'
+                    ? await fetchSosacMovie(cleanId, creds.username, creds.passMd5)
+                    : await resolveSosacEpisode(
+                        cleanId,
+                        season,
+                        episode,
+                        creds,
+                        false
+                    );
+                if (!targetData) return [];
+                return findDirectSubtitles(req, targetData, creds);
+            }
 
-            const targetData = type === 'movie'
-                ? await fetchSosacMovie(targetId, creds.username, creds.passMd5)
+            // Nejdřív zachováme původní 2.9.8 chování:
+            // IMDb ID zkusíme přímo proti Sosáč API. Až když tato cesta
+            // nedá použitelný titulek, použijeme Cinemeta -> interní Sosáč ID.
+            console.log(`[IMDB DIRECT] ${type} ${cleanId}: zkouším původní Sosáč lookup`);
+            let directTargetData = null;
+
+            try {
+                directTargetData = type === 'movie'
+                    ? await fetchSosacMovie(
+                        cleanId,
+                        creds.username,
+                        creds.passMd5
+                    )
+                    : await resolveSosacEpisode(
+                        cleanId,
+                        season,
+                        episode,
+                        creds,
+                        false
+                    );
+            } catch (e) {
+                console.log(`[IMDB DIRECT] ${type} ${cleanId}: přímý lookup selhal (${e.message})`);
+            }
+
+            if (directTargetData) {
+                const directSubtitles = await findDirectSubtitles(
+                    req,
+                    directTargetData,
+                    creds
+                );
+                if (directSubtitles.length) {
+                    console.log(`[IMDB DIRECT] ${type} ${cleanId}: nalezeno ${directSubtitles.length} stop bez Cinemety`);
+                    return directSubtitles;
+                }
+                console.log(`[IMDB DIRECT] ${type} ${cleanId}: bez použitelného titulku, zkouším fallback`);
+            } else {
+                console.log(`[IMDB DIRECT] ${type} ${cleanId}: Sosáč nic nevrátil, zkouším fallback`);
+            }
+
+            const targetId = await resolveSosacIdFromImdb(
+                type,
+                cleanId,
+                creds
+            );
+            if (!targetId) {
+                console.log(`[IMDB FALLBACK] ${type} ${cleanId}: interní Sosáč ID nenalezeno`);
+                return [];
+            }
+
+            console.log(`[IMDB FALLBACK] ${type} ${cleanId}: zkouším Sosáč ID ${targetId}`);
+            const mappedTargetData = type === 'movie'
+                ? await fetchSosacMovie(
+                    targetId,
+                    creds.username,
+                    creds.passMd5
+                )
                 : await resolveSosacEpisode(
                     targetId,
                     season,
                     episode,
                     creds,
-                    isImdbRequest
+                    true
                 );
-            if (!targetData) return [];
-            return findDirectSubtitles(req, targetData, creds);
+
+            if (!mappedTargetData) return [];
+            return findDirectSubtitles(req, mappedTargetData, creds);
         });
         return buildSubtitleResponse(req, res, subtitles);
     } catch (e) {
