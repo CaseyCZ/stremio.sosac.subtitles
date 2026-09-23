@@ -17,6 +17,7 @@ app.use((req, res, next) => {
 const PORT = process.env.PORT || 7000;
 const SOSAC_API_DOMAIN = 'kodi-api.sosac.to';
 const STREAMUJ_PLAYER_API = 'https://www.streamuj.tv/json_api_player.php';
+const CINEMETA_BASE_URL = 'https://v3-cinemeta.strem.io';
 
 const manifest = {
     id: 'org.stremio.sosac.streamuj.subtitles.public',
@@ -46,7 +47,8 @@ function isAllowedHost(hostname) {
     return isStreamujHost(hostname) ||
         hostname === SOSAC_API_DOMAIN ||
         hostname === 'sosac.tv' ||
-        hostname === 'www.sosac.tv';
+        hostname === 'www.sosac.tv' ||
+        hostname === 'v3-cinemeta.strem.io';
 }
 
 function httpsGet(url, username, passMd5, customHeaders = {}, redirects = 0, timeoutMs = 20000) {
@@ -600,6 +602,237 @@ async function fetchSubtitlesFromHtml(
 }
 
 // ============================================================
+// IMDb -> SOSÁČ RESOLVER
+// ============================================================
+// Stremio často žádá titulky pod IMDb ID (tt...). Kodi API Sosáče ale
+// detail filmu/seriálu očekává pod interním Sosáč ID. Pro IMDb požadavek
+// proto načteme metadata z Cinemety, vyhledáme kandidáty v Sosáči a
+// preferujeme přesnou shodu IMDb pole; název + rok slouží jako fallback.
+
+const imdbResolveCache = new Map();
+
+function normalizeTitleForMatch(value) {
+    return String(value || '')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase()
+        .replace(/&/g, ' and ')
+        .replace(/[^a-z0-9]+/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+}
+
+function uniqueTitleStrings(values) {
+    const seen = new Set();
+    const result = [];
+    for (const value of values || []) {
+        const text = String(value || '').trim();
+        const key = normalizeTitleForMatch(text);
+        if (!key || seen.has(key)) continue;
+        seen.add(key);
+        result.push(text);
+    }
+    return result;
+}
+
+function titleMatchScore(a, b) {
+    const left = normalizeTitleForMatch(a);
+    const right = normalizeTitleForMatch(b);
+    if (!left || !right) return 0;
+    if (left === right) return 1;
+    if (left.startsWith(right) || right.startsWith(left)) return 0.9;
+    if (left.includes(right) || right.includes(left)) return 0.82;
+
+    const aa = new Set(left.split(' ').filter(Boolean));
+    const bb = new Set(right.split(' ').filter(Boolean));
+    if (!aa.size || !bb.size) return 0;
+    let common = 0;
+    for (const token of aa) if (bb.has(token)) common++;
+    return common / Math.max(aa.size, bb.size);
+}
+
+function collectSosacTitles(item) {
+    const values = [];
+    const add = value => {
+        if (typeof value === 'string') values.push(value);
+        else if (Array.isArray(value)) value.forEach(add);
+        else if (isRecord(value)) Object.values(value).forEach(add);
+    };
+    add(item && item.n);
+    add(item && item.originalName);
+    add(item && item.title);
+    return uniqueTitleStrings(values);
+}
+
+function normalizeImdbCandidate(value) {
+    if (typeof value === 'string') {
+        const text = value.trim();
+        const match = text.match(/\btt\d{5,10}\b/i);
+        if (match) return match[0].toLowerCase();
+        if (/^\d{5,10}$/.test(text)) return `tt${text.padStart(7, '0')}`.toLowerCase();
+        return null;
+    }
+    if (typeof value === 'number' && Number.isInteger(value) && value >= 10000) {
+        const text = String(value);
+        if (text.length <= 10) return `tt${text.padStart(7, '0')}`.toLowerCase();
+    }
+    return null;
+}
+
+function extractSosacImdbId(item) {
+    if (!isRecord(item)) return null;
+    for (const key of ['imdb', 'imdb_id', 'imdbId', 'imdbid', 'imdbID', 'm']) {
+        if (!Object.prototype.hasOwnProperty.call(item, key)) continue;
+        const found = normalizeImdbCandidate(item[key]);
+        if (found) return found;
+    }
+    return null;
+}
+
+function metadataYear(meta) {
+    const direct = Number(meta && meta.year);
+    if (Number.isFinite(direct) && direct > 1800) return Math.trunc(direct);
+    const match = String(meta && meta.releaseInfo || '').match(/\b(18|19|20|21)\d{2}\b/);
+    return match ? Number(match[0]) : undefined;
+}
+
+function sosacCandidateScore(item, wantedTitles, year) {
+    const candidateTitles = collectSosacTitles(item);
+    let score = 0;
+    for (const wanted of wantedTitles) {
+        for (const candidate of candidateTitles) {
+            score = Math.max(score, titleMatchScore(wanted, candidate));
+        }
+    }
+
+    const candidateYear = Number(item && item.y);
+    if (year && Number.isFinite(candidateYear) && candidateYear > 1800) {
+        const diff = Math.abs(year - Math.trunc(candidateYear));
+        if (diff === 0) score += 0.12;
+        else if (diff === 1) score += 0.06;
+        else if (diff >= 3) score -= 0.20;
+    }
+    return score;
+}
+
+function readImdbResolveCache(key) {
+    const entry = imdbResolveCache.get(key);
+    if (!entry) return undefined;
+    if (Date.now() >= entry.expiresAt) {
+        imdbResolveCache.delete(key);
+        return undefined;
+    }
+    return entry.value;
+}
+
+function writeImdbResolveCache(key, value, ttlMs) {
+    imdbResolveCache.set(key, { value, expiresAt: Date.now() + ttlMs });
+    while (imdbResolveCache.size > 512) {
+        imdbResolveCache.delete(imdbResolveCache.keys().next().value);
+    }
+}
+
+async function fetchCinemetaMeta(type, imdbId) {
+    try {
+        const endpoint = `${CINEMETA_BASE_URL}/meta/${type}/${encodeURIComponent(imdbId)}.json`;
+        const raw = await httpsGet(endpoint, '', '', {
+            'Accept': 'application/json,text/plain,*/*'
+        }, 0, 10000);
+        const data = safeJsonParse(raw);
+        return isRecord(data) && isRecord(data.meta) ? data.meta : null;
+    } catch (e) {
+        console.warn(`[IMDB RESOLVE] Cinemeta ${type}/${imdbId} selhala: ${e.message}`);
+        return null;
+    }
+}
+
+async function searchSosac(type, query, username, passMd5) {
+    const collection = type === 'movie' ? 'movies' : 'serials';
+    const url = new URL(`https://${SOSAC_API_DOMAIN}/${collection}/simple-search`);
+    url.searchParams.set('q', String(query || '').trim());
+    url.searchParams.set('pocet', '100');
+    url.searchParams.set('stranka', '1');
+
+    const raw = await httpsGet(url.toString(), username, passMd5, {
+        'Referer': 'https://sosac.tv/',
+        'Origin': 'https://sosac.tv/',
+        'Accept': 'application/json,text/plain,*/*'
+    });
+    const data = safeJsonParse(raw);
+    if (Array.isArray(data)) return data;
+    if (!isRecord(data)) return [];
+    for (const key of ['items', 'results', 'movies', 'serials']) {
+        if (Array.isArray(data[key])) return data[key];
+    }
+    return [];
+}
+
+async function resolveSosacIdFromImdb(type, imdbId, creds) {
+    const normalizedImdb = String(imdbId || '').toLowerCase();
+    if (!/^tt\d{5,10}$/.test(normalizedImdb)) return null;
+
+    const cacheKey = `${type}:${normalizedImdb}`;
+    const cached = readImdbResolveCache(cacheKey);
+    if (cached !== undefined) return cached;
+
+    const meta = await fetchCinemetaMeta(type, normalizedImdb);
+    if (!meta) {
+        writeImdbResolveCache(cacheKey, null, 30 * 60 * 1000);
+        return null;
+    }
+
+    const wantedTitles = uniqueTitleStrings([
+        meta.name,
+        meta.originalName,
+        ...(Array.isArray(meta.nameTranslations) ? meta.nameTranslations : [])
+    ]);
+    const year = metadataYear(meta);
+    let best = null;
+    let bestScore = -1;
+
+    for (const title of wantedTitles.slice(0, 4)) {
+        let results = [];
+        try {
+            results = await searchSosac(type, title, creds.username, creds.passMd5);
+        } catch (e) {
+            console.warn(`[IMDB RESOLVE] Sosáč search "${title}" selhal: ${e.message}`);
+            continue;
+        }
+
+        for (const item of results) {
+            if (!isRecord(item) || item._id === undefined || item._id === null) continue;
+
+            const itemImdb = extractSosacImdbId(item);
+            if (itemImdb === normalizedImdb) {
+                const resolved = String(item._id);
+                console.log(`[IMDB RESOLVE] ${type} ${normalizedImdb} -> Sosáč ${resolved} (IMDb match)`);
+                writeImdbResolveCache(cacheKey, resolved, 12 * 60 * 60 * 1000);
+                return resolved;
+            }
+
+            const score = sosacCandidateScore(item, wantedTitles, year);
+            if (score > bestScore) {
+                best = item;
+                bestScore = score;
+            }
+        }
+
+        if (bestScore >= 1.05) break;
+    }
+
+    if (!best || bestScore < 0.68) {
+        console.log(`[IMDB RESOLVE] ${type} ${normalizedImdb}: Sosáč shoda nenalezena`);
+        writeImdbResolveCache(cacheKey, null, 30 * 60 * 1000);
+        return null;
+    }
+
+    const resolved = String(best._id);
+    console.log(`[IMDB RESOLVE] ${type} ${normalizedImdb} -> Sosáč ${resolved} (score ${bestScore.toFixed(2)})`);
+    writeImdbResolveCache(cacheKey, resolved, 12 * 60 * 60 * 1000);
+    return resolved;
+}
+
+// ============================================================
 // SOSÁČ API
 // ============================================================
 
@@ -649,8 +882,10 @@ async function fetchSosacSeriesRaw(episodeId, username, passMd5) {
     }
 }
 
-async function resolveSosacEpisode(id, season, episode, creds) {
-    const direct = await fetchSosacSeriesRaw(id, creds.username, creds.passMd5);
+async function resolveSosacEpisode(id, season, episode, creds, skipDirectLookup = false) {
+    const direct = skipDirectLookup
+        ? null
+        : await fetchSosacSeriesRaw(id, creds.username, creds.passMd5);
     const hasPosition = season !== null && episode !== null;
     if (direct && (!hasPosition ||
         (normalizeInt(direct.s) === season && normalizeInt(direct.ep) === episode))) {
@@ -1089,9 +1324,22 @@ builder.defineSubtitlesHandler(async function(args) {
         // Extras are passed through the SDK interface. Sosáč IDs identify the
         // actual item; no unverified videoHash-to-Streamuj mapping is invented.
         const subtitles = await resolveSubtitleRequest(req, creds, { type, id }, async () => {
+            const isImdbRequest = /^tt\d{5,10}$/i.test(cleanId);
+            const targetId = isImdbRequest
+                ? await resolveSosacIdFromImdb(type, cleanId, creds)
+                : cleanId;
+
+            if (!targetId) return [];
+
             const targetData = type === 'movie'
-                ? await fetchSosacMovie(cleanId, creds.username, creds.passMd5)
-                : await resolveSosacEpisode(cleanId, season, episode, creds);
+                ? await fetchSosacMovie(targetId, creds.username, creds.passMd5)
+                : await resolveSosacEpisode(
+                    targetId,
+                    season,
+                    episode,
+                    creds,
+                    isImdbRequest
+                );
             if (!targetData) return [];
             return findDirectSubtitles(req, targetData, creds);
         });
