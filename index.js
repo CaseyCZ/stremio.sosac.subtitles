@@ -21,7 +21,7 @@ const PORT = process.env.PORT || 7000;
 const SOSAC_API_DOMAIN = 'kodi-api.sosac.to';
 const STREAMUJ_PLAYER_API = 'https://www.streamuj.tv/json_api_player.php';
 const CINEMETA_BASE_URL = 'https://v3-cinemeta.strem.io';
-const DIRECT_DIAGNOSTICS = process.env.DIRECT_DIAGNOSTICS !== '0';
+const DIRECT_DIAGNOSTICS = process.env.DIRECT_DIAGNOSTICS === '1';
 const DIRECT_DIAGNOSTIC_SAMPLE_BYTES = 16 * 1024;
 const HYBRID_APPLE_UA = /\bStremio-Apple\/0\.6\.5\b/i;
 const SUBTITLE_CACHE_DIR = process.env.SUBTITLE_CACHE_DIR ||
@@ -1352,13 +1352,10 @@ async function prepareCompatibilitySubtitleFile(sub, creds, req) {
 }
 
 function shouldUseCompatibilityProxy(req, sub) {
-    const ua = String(req.headers['user-agent'] || '');
-    if (!HYBRID_APPLE_UA.test(ua)) return false;
-
-    const shape = subtitleUrlShape(sub.sourceUrl);
-    // Stremio-Apple 0.6.5 může vracet unsupportedFileType("NULL")
-    // u Streamuj URL bez přípony a bez názvu souboru.
-    return shape.pathExtension === 'none';
+    // Všechny klienty obsluhujeme přes normalizovaný WebVTT soubor.
+    // Tím odstraníme rozdíly mezi klienty v detekci SRT URL bez přípony,
+    // MIME text/plain a Content-Disposition bez filename.
+    return Boolean(req && sub && sub.sourceUrl);
 }
 
 function sendVtt(req, res, body) {
@@ -1492,7 +1489,7 @@ function prepareDirectSubtitleTracks(foundSubs) {
 async function prepareHybridSubtitleTracks(req, foundSubs, creds) {
     const source = Array.isArray(foundSubs) ? foundSubs : [];
     const direct = prepareDirectSubtitleTracks(source);
-    if (!source.length || !HYBRID_APPLE_UA.test(String(req.headers['user-agent'] || ''))) {
+    if (!source.length) {
         return direct;
     }
 
@@ -1505,7 +1502,7 @@ async function prepareHybridSubtitleTracks(req, foundSubs, creds) {
         if (shouldUseCompatibilityProxy(req, sub)) {
             try {
                 track = await prepareCompatibilitySubtitleFile(sub, creds, req);
-                console.log(`[SUBTITLE HYBRID] Apple 0.6.5 + URL bez přípony -> VTT fallback (${sub.lang || 'und'})`);
+                console.log(`[SUBTITLE HYBRID] VTT compatibility delivery (${sub.lang || 'und'})`);
             } catch (e) {
                 console.error(`[SUBTITLE HYBRID] VTT fallback selhal: ${e.message}; vracím direct.`);
             }
@@ -1617,7 +1614,7 @@ async function resolveSubtitleRequest(req, creds, identity, lookup) {
     const cached = subtitleLookupCache.get(key);
 
     if (cached && Date.now() - cached.createdAt < 2 * 60 * 1000) {
-        console.log('[SUBTITLE LOOKUP] Používám krátkou direct cache.');
+        console.log('[SUBTITLE LOOKUP] Používám krátkou subtitle cache.');
         return cached.subtitles;
     }
 
@@ -2043,10 +2040,11 @@ app.get('/health', (req, res) => {
     res.json({
         ok: true,
         version: addonInterface.manifest.version,
-        directSubtitles: true,
+        directSubtitles: false,
         subtitleProxy: true,
         hybridSubtitles: true,
-        appleCompatibilityUa: 'Stremio-Apple/0.6.5',
+        universalVttCompatibility: true,
+        directFallbackOnProxyError: true,
         streamujDevice: 19
     });
 });
