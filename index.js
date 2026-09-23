@@ -437,8 +437,8 @@ function probeSubtitleRequest(rawUrl, creds, authenticated) {
     });
 }
 
-async function diagnoseDirectSubtitleTracks(foundSubs, creds, req, videoId) {
-    if (!DIRECT_DIAGNOSTICS) return;
+async function diagnoseDirectSubtitleTracks(foundSubs, creds, req, videoId, force = false) {
+    if (!DIRECT_DIAGNOSTICS && !force) return;
 
     const client = {
         userAgent: safeHeaderValue(req.headers['user-agent'], 300) || 'missing',
@@ -1297,6 +1297,124 @@ async function storeSubtitleFile(body) {
     return hash;
 }
 
+const directTestBySource = new Map();
+const directTestFilePending = new Map();
+
+function directTestSrtPath(hash) {
+    return path.join(SUBTITLE_CACHE_DIR, `${hash}.direct-test.srt`);
+}
+
+async function readDirectTestSrt(hash) {
+    try {
+        const body = await fs.promises.readFile(directTestSrtPath(hash));
+        if (!body.length || body.length > SUBTITLE_FILE_MAX_BYTES) return null;
+        if (crypto.createHash('sha256').update(body).digest('hex') !== hash) return null;
+        return body;
+    } catch (e) {
+        if (e.code === 'ENOENT') return null;
+        throw e;
+    }
+}
+
+async function storeDirectTestSrt(body) {
+    const hash = crypto.createHash('sha256').update(body).digest('hex');
+    if (await readDirectTestSrt(hash)) return hash;
+
+    await fs.promises.mkdir(SUBTITLE_CACHE_DIR, { recursive: true });
+    const temporary = path.join(
+        SUBTITLE_CACHE_DIR,
+        `.direct-test-${crypto.randomBytes(12).toString('hex')}.tmp`
+    );
+
+    try {
+        await fs.promises.writeFile(temporary, body, { flag: 'wx', mode: 0o600 });
+        await fs.promises.rename(temporary, directTestSrtPath(hash));
+    } finally {
+        await fs.promises.rm(temporary, { force: true });
+    }
+    return hash;
+}
+
+async function downloadDirectTestSrt(rawUrl, username, passMd5) {
+    const targetUrl = validateSubtitleUrl(rawUrl);
+    const subData = await httpsGet(
+        targetUrl,
+        username,
+        passMd5,
+        {
+            'Accept': 'text/plain,application/x-subrip,*/*',
+            'Referer': 'https://www.streamuj.tv/'
+        }
+    );
+
+    if (!subData || /^\s*</.test(subData)) {
+        throw new Error('Streamuj nevrátil platná textová data titulků.');
+    }
+
+    const body = Buffer.from(subData, 'utf8');
+    const detected = detectSubtitleSample(body);
+    if (detected !== 'srt') {
+        throw new Error(`DIRECT TEST očekával SRT, detekováno: ${detected}.`);
+    }
+    if (!body.length || body.length > SUBTITLE_FILE_MAX_BYTES) {
+        throw new Error('Neplatná velikost SRT.');
+    }
+    return body;
+}
+
+async function prepareDirectSrtExtensionTestFile(sub, creds, req) {
+    const sourceUrl = validateSubtitleUrl(sub.sourceUrl);
+    const key = subtitleFileSourceKey(sourceUrl, creds);
+    const cached = directTestBySource.get(key);
+    let hash = cached &&
+        Date.now() - cached.checkedAt < SUBTITLE_SOURCE_REFRESH_MS
+        ? cached.hash : null;
+
+    if (hash && !(await readDirectTestSrt(hash))) {
+        directTestBySource.delete(key);
+        hash = null;
+    }
+
+    if (!hash) {
+        let pending = directTestFilePending.get(key);
+        if (!pending) {
+            pending = (async () => {
+                const body = await downloadDirectTestSrt(
+                    sourceUrl, creds.username, creds.passMd5
+                );
+                const result = await storeDirectTestSrt(body);
+                directTestBySource.set(key, {
+                    hash: result,
+                    checkedAt: Date.now()
+                });
+                while (directTestBySource.size > SUBTITLE_SOURCE_CACHE_MAX) {
+                    directTestBySource.delete(directTestBySource.keys().next().value);
+                }
+                console.log(`[DIRECT TEST FILE] phase=srt-extension bytes=${body.length} hash=${result.slice(0, 12)}`);
+                return result;
+            })();
+            directTestFilePending.set(key, pending);
+        }
+
+        try {
+            hash = await pending;
+        } finally {
+            if (directTestFilePending.get(key) === pending) {
+                directTestFilePending.delete(key);
+            }
+        }
+    }
+
+    const publicPath =
+        `/stremio-sosac-subtitles/direct-test-file/v1/${hash}.srt`;
+    return {
+        id: `sosac-direct-test-srt-${sub.lang || 'und'}-${hash.slice(0, 12)}`,
+        lang: sub.lang || 'und',
+        url: new URL(publicPath, getBaseUrl(req)).toString(),
+        delivery: 'direct-test-srt-extension'
+    };
+}
+
 async function prepareCompatibilitySubtitleFile(sub, creds, req) {
     const sourceUrl = validateSubtitleUrl(sub.sourceUrl);
     const key = subtitleFileSourceKey(sourceUrl, creds);
@@ -1401,6 +1519,36 @@ function sendVtt(req, res, body) {
     if (req.method === 'HEAD') return res.end();
     return res.end(body);
 }
+
+app.get('/direct-test-file/v1/:hash.srt', async (req, res) => {
+    const hash = String(req.params.hash || '');
+    traceSubtitleHttp(req, res, {
+        resource: 'direct-test-srt-file',
+        hash: hash.slice(0, 12)
+    });
+
+    if (!/^[a-f0-9]{64}$/i.test(hash)) {
+        return res.status(404).type('text/plain').send('Titulky nenalezeny.');
+    }
+
+    try {
+        const body = await readDirectTestSrt(hash.toLowerCase());
+        if (!body) {
+            return res.status(404).type('text/plain').send('Titulky už nejsou v cache.');
+        }
+
+        res.setHeader('Access-Control-Allow-Origin', '*');
+        res.setHeader('Cache-Control', 'no-store');
+        res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+        res.setHeader('Content-Length', body.length);
+        console.log(`[DIRECT TEST SERVE] phase=srt-extension hash=${hash.slice(0, 12)} bytes=${body.length} ua=${safeHeaderValue(req.headers['user-agent'], 120) || 'missing'}`);
+        if (req.method === 'HEAD') return res.end();
+        return res.end(body);
+    } catch (e) {
+        console.error(`[DIRECT TEST SERVE] ${e.message}`);
+        return res.status(500).type('text/plain').send('Chyba titulků.');
+    }
+});
 
 app.get('/subtitle-file/v1/:hash.vtt', async (req, res) => {
     const hash = String(req.params.hash || '');
@@ -1546,18 +1694,29 @@ async function findDirectSubtitles(req, targetData, creds) {
         const isDirectTest = requestContext && requestContext.deliveryMode === 'direct-test';
 
         if (found.length && (DIRECT_DIAGNOSTICS || isDirectTest)) {
-            await diagnoseDirectSubtitleTracks(found, creds, req, videoId);
+            await diagnoseDirectSubtitleTracks(found, creds, req, videoId, isDirectTest);
         }
 
-        const prepared = isDirectTest
-            ? prepareDirectSubtitleTracks(found).map(sub => ({
-                ...sub,
-                delivery: 'direct-test'
-            }))
-            : await prepareHybridSubtitleTracks(req, found, creds);
+        let prepared;
+        if (isDirectTest) {
+            prepared = [];
+            for (const sub of found.slice(0, 12)) {
+                try {
+                    prepared.push(await prepareDirectSrtExtensionTestFile(
+                        sub,
+                        creds,
+                        req
+                    ));
+                } catch (e) {
+                    console.error(`[SUBTITLE DIRECT TEST] SRT extension test selhal: ${e.message}`);
+                }
+            }
+        } else {
+            prepared = await prepareHybridSubtitleTracks(req, found, creds);
+        }
 
         if (isDirectTest && prepared.length) {
-            console.log(`[SUBTITLE DIRECT TEST] Streamuj ID ${videoId}: ${prepared.length} přímých stop`);
+            console.log(`[SUBTITLE DIRECT TEST] phase=srt-extension Streamuj ID ${videoId}: ${prepared.length} stop`);
         }
 
         if (prepared.length) {
@@ -2068,7 +2227,7 @@ app.get('/:config/direct-test/manifest.json', (req, res) => {
         ...addonInterface.manifest,
         id: `${addonInterface.manifest.id}.directtest`,
         name: `${addonInterface.manifest.name} [DIRECT TEST]`,
-        description: 'Diagnostická kopie addonu: vrací původní přímé Streamuj subtitle URL bez VTT fallbacku.',
+        description: 'DIRECT TEST fáze 2: původní SRT obsah beze změny, URL končí .srt, MIME zůstává text/plain bez Content-Disposition.',
         behaviorHints: {
             configurable: true,
             configurationRequired: false
