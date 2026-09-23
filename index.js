@@ -1072,7 +1072,7 @@ async function resolveSubtitleRequest(req, creds, identity, lookup) {
 // ============================================================
 
 app.get('/:config/configure', (req, res) => {
-    res.redirect('/');
+    res.redirect('/configure');
 });
 
 app.get(['/', '/configure'], (req, res) => {
