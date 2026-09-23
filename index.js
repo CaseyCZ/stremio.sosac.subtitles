@@ -18,6 +18,8 @@ const PORT = process.env.PORT || 7000;
 const SOSAC_API_DOMAIN = 'kodi-api.sosac.to';
 const STREAMUJ_PLAYER_API = 'https://www.streamuj.tv/json_api_player.php';
 const CINEMETA_BASE_URL = 'https://v3-cinemeta.strem.io';
+const DIRECT_DIAGNOSTICS = process.env.DIRECT_DIAGNOSTICS !== '0';
+const DIRECT_DIAGNOSTIC_SAMPLE_BYTES = 16 * 1024;
 
 const manifest = {
     id: 'org.stremio.sosac.streamuj.subtitles.public',
@@ -249,6 +251,220 @@ function normalizeSubtitleUrl(rawUrl) {
     }
 
     return validateSubtitleUrl(url.toString());
+}
+
+
+function safeHeaderValue(value, max = 240) {
+    return String(value || '').replace(/[\r\n]+/g, ' ').slice(0, max);
+}
+
+function subtitleUrlShape(rawUrl) {
+    try {
+        const url = new URL(rawUrl);
+        const last = url.pathname.split('/').filter(Boolean).pop() || '';
+        const extMatch = last.match(/\.([a-z0-9]{1,8})$/i);
+        return {
+            host: url.hostname,
+            pathExtension: extMatch ? `.${extMatch[1].toLowerCase()}` : 'none',
+            queryKeys: Array.from(new Set(Array.from(url.searchParams.keys()))).sort(),
+            hasQuery: Boolean(url.search),
+            pathSegments: url.pathname.split('/').filter(Boolean).length
+        };
+    } catch (_) {
+        return { host: 'invalid', pathExtension: 'none', queryKeys: [], hasQuery: false, pathSegments: 0 };
+    }
+}
+
+function dispositionFileExtension(value) {
+    const text = String(value || '');
+    const match = text.match(/filename\*?=(?:UTF-8''|["'])?([^;"']+)/i);
+    if (!match) return 'none';
+    const name = decodeURIComponent(match[1].trim().replace(/^["']|["']$/g, ''));
+    const ext = name.match(/\.([a-z0-9]{1,8})$/i);
+    return ext ? `.${ext[1].toLowerCase()}` : 'none';
+}
+
+function detectSubtitleSample(buffer) {
+    const raw = Buffer.isBuffer(buffer) ? buffer : Buffer.from(buffer || '');
+    const text = raw.toString('utf8').replace(/^\uFEFF/, '').trimStart();
+    if (!text) return 'empty';
+    if (/^WEBVTT(?:[ \t\r\n]|$)/i.test(text)) return 'webvtt';
+    if (/^(?:\d+[ \t]*\r?\n)?(?:\d{1,3}:)?[0-5]\d:[0-5]\d[,.]\d{3}[ \t]*-->[ \t]*(?:\d{1,3}:)?[0-5]\d:[0-5]\d[,.]\d{3}/.test(text)) return 'srt';
+    if (/^<!doctype\s+html|^<html\b|^<head\b|^<body\b/i.test(text)) return 'html';
+    if (/^[{[]/.test(text)) return 'json-or-structured-text';
+    return 'unknown-text';
+}
+
+function probeSubtitleRequest(rawUrl, creds, authenticated) {
+    return new Promise((resolve) => {
+        const startedAt = Date.now();
+        const chain = [];
+        let finished = false;
+
+        const finish = result => {
+            if (finished) return;
+            finished = true;
+            resolve({
+                mode: authenticated ? 'authenticated' : 'anonymous',
+                elapsedMs: Date.now() - startedAt,
+                redirects: chain,
+                ...result
+            });
+        };
+
+        const requestUrl = (value, redirects) => {
+            let target;
+            try {
+                target = new URL(validateSubtitleUrl(value));
+            } catch (e) {
+                finish({ ok: false, error: 'invalid-url' });
+                return;
+            }
+
+            const headers = {
+                'User-Agent': 'Stremio-Direct-Subtitle-Diagnostic/3.0',
+                'Accept': 'text/vtt,text/plain,application/x-subrip,*/*',
+                'Accept-Encoding': 'identity',
+                'Range': `bytes=0-${DIRECT_DIAGNOSTIC_SAMPLE_BYTES - 1}`
+            };
+
+            if (authenticated) {
+                headers.Referer = 'https://www.streamuj.tv/';
+                headers.Cookie = `pass=${encodeURIComponent(creds.username)}%3A%3A%3A${creds.passMd5}; sublanguage=1; quality=1; videolanguage=cs`;
+            }
+
+            const req = https.get(target, { headers, timeout: 10000 }, res => {
+                const status = res.statusCode || 0;
+                const shape = subtitleUrlShape(target.toString());
+                const redirectInfo = {
+                    status,
+                    host: shape.host,
+                    pathExtension: shape.pathExtension
+                };
+
+                if ([301, 302, 303, 307, 308].includes(status)) {
+                    const location = res.headers.location;
+                    if (location) {
+                        try {
+                            const next = new URL(location, target);
+                            const nextShape = subtitleUrlShape(next.toString());
+                            redirectInfo.toHost = nextShape.host;
+                            redirectInfo.toPathExtension = nextShape.pathExtension;
+                        } catch (_) {
+                            redirectInfo.toHost = 'invalid';
+                        }
+                    }
+                    chain.push(redirectInfo);
+                    res.resume();
+
+                    if (!location || redirects >= 3) {
+                        finish({ ok: false, status, error: !location ? 'redirect-without-location' : 'too-many-redirects' });
+                        return;
+                    }
+
+                    let nextUrl;
+                    try {
+                        nextUrl = new URL(location, target).toString();
+                        validateSubtitleUrl(nextUrl);
+                    } catch (_) {
+                        finish({ ok: false, status, error: 'redirect-to-disallowed-url' });
+                        return;
+                    }
+                    requestUrl(nextUrl, redirects + 1);
+                    return;
+                }
+
+                chain.push(redirectInfo);
+
+                const chunks = [];
+                let sampled = 0;
+                res.on('data', chunk => {
+                    if (sampled >= DIRECT_DIAGNOSTIC_SAMPLE_BYTES) return;
+                    const part = Buffer.from(chunk);
+                    const remaining = DIRECT_DIAGNOSTIC_SAMPLE_BYTES - sampled;
+                    const piece = part.length > remaining ? part.subarray(0, remaining) : part;
+                    chunks.push(piece);
+                    sampled += piece.length;
+                });
+                res.on('end', () => {
+                    const sample = Buffer.concat(chunks);
+                    const finalShape = subtitleUrlShape(target.toString());
+                    const contentType = safeHeaderValue(res.headers['content-type'], 120).toLowerCase();
+                    const contentDisposition = safeHeaderValue(res.headers['content-disposition'], 240);
+                    const detectedFormat = detectSubtitleSample(sample);
+                    const contentTypeLooksSubtitle =
+                        /text\/vtt|application\/x-subrip|application\/subrip|text\/plain/.test(contentType);
+
+                    finish({
+                        ok: status >= 200 && status < 300,
+                        status,
+                        finalHost: finalShape.host,
+                        finalPathExtension: finalShape.pathExtension,
+                        finalQueryKeys: finalShape.queryKeys,
+                        contentType: contentType || 'missing',
+                        dispositionExtension: dispositionFileExtension(contentDisposition),
+                        contentLength: safeHeaderValue(res.headers['content-length'], 40) || 'missing',
+                        contentRange: safeHeaderValue(res.headers['content-range'], 80) || 'missing',
+                        acceptRanges: safeHeaderValue(res.headers['accept-ranges'], 80) || 'missing',
+                        cors: safeHeaderValue(res.headers['access-control-allow-origin'], 120) || 'missing',
+                        server: safeHeaderValue(res.headers.server, 120) || 'missing',
+                        detectedFormat,
+                        sampleBytes: sample.length,
+                        usableAsSubtitle: status >= 200 && status < 300 &&
+                            (detectedFormat === 'webvtt' || detectedFormat === 'srt' || contentTypeLooksSubtitle)
+                    });
+                });
+                res.on('error', err => finish({ ok: false, status, error: `response-${err.code || 'error'}` }));
+            });
+
+            req.on('timeout', () => {
+                req.destroy();
+                finish({ ok: false, error: 'timeout' });
+            });
+            req.on('error', err => finish({ ok: false, error: `request-${err.code || 'error'}` }));
+        };
+
+        requestUrl(rawUrl, 0);
+    });
+}
+
+async function diagnoseDirectSubtitleTracks(foundSubs, creds, req, videoId) {
+    if (!DIRECT_DIAGNOSTICS) return;
+
+    const client = {
+        userAgent: safeHeaderValue(req.headers['user-agent'], 300) || 'missing',
+        accept: safeHeaderValue(req.headers.accept, 200) || 'missing',
+        acceptLanguage: safeHeaderValue(req.headers['accept-language'], 120) || 'missing',
+        origin: safeHeaderValue(req.headers.origin, 160) || 'missing',
+        refererHost: (() => {
+            try {
+                return req.headers.referer ? new URL(req.headers.referer).hostname : 'missing';
+            } catch (_) {
+                return 'invalid';
+            }
+        })()
+    };
+    console.log('[DIRECT DIAG CLIENT]', JSON.stringify(client));
+
+    const tracks = (Array.isArray(foundSubs) ? foundSubs : []).slice(0, 3);
+    for (let i = 0; i < tracks.length; i++) {
+        const sub = tracks[i];
+        const shape = subtitleUrlShape(sub.sourceUrl);
+        const [anonymous, authenticated] = await Promise.all([
+            probeSubtitleRequest(sub.sourceUrl, creds, false),
+            probeSubtitleRequest(sub.sourceUrl, creds, true)
+        ]);
+
+        console.log('[DIRECT DIAG]', JSON.stringify({
+            videoId,
+            track: i + 1,
+            lang: sub.lang || 'und',
+            sourceKind: sub.sourceKind || 'html',
+            urlShape: shape,
+            anonymous,
+            authenticated
+        }));
+    }
 }
 
 // ============================================================
@@ -519,7 +735,9 @@ async function fetchSubtitlesFromHtml(
                 id,
                 sourceUrl,
                 lang,
-                file_name: `Streamuj.tv - ${subtitleLanguageName(lang)}.vtt`
+                file_name: `Streamuj.tv - ${subtitleLanguageName(lang)}.vtt`,
+                sourceKind: 'html',
+                videoId
             });
         } catch (e) {
             console.log('[Subtitle] Přeskakuji neplatný odkaz.');
@@ -978,6 +1196,11 @@ async function findDirectSubtitles(req, targetData, creds) {
         const found = await fetchSubtitlesFromStreamuj(
             videoId, creds.username, creds.passMd5, req
         );
+
+        if (found.length && DIRECT_DIAGNOSTICS) {
+            await diagnoseDirectSubtitleTracks(found, creds, req, videoId);
+        }
+
         const direct = prepareDirectSubtitleTracks(found);
 
         if (direct.length) {
@@ -1308,6 +1531,18 @@ builder.defineSubtitlesHandler(async function(args) {
         console.log(`[Subtitle Request] type=${type}, id=${id}`);
         console.log(`[Subtitle Request] cleanId=${cleanId}, season=${season}, episode=${episode}`);
         console.log(`[Subtitle Request] extraKeys=${Object.keys(extra).join(',') || 'none'}`);
+        console.log('[Subtitle Client]', JSON.stringify({
+            userAgent: safeHeaderValue(req.headers['user-agent'], 300) || 'missing',
+            accept: safeHeaderValue(req.headers.accept, 200) || 'missing',
+            acceptLanguage: safeHeaderValue(req.headers['accept-language'], 120) || 'missing',
+            filenameExtension: (() => {
+                const name = String(extra.filename || '');
+                const match = name.match(/\.([a-z0-9]{1,8})$/i);
+                return match ? `.${match[1].toLowerCase()}` : 'none';
+            })(),
+            hasVideoHash: Boolean(extra.videoHash),
+            hasVideoSize: Boolean(extra.videoSize)
+        }));
         console.log('========================================');
 
         // Preserve the existing Sosáč IDs, including :movies and :episodes.
