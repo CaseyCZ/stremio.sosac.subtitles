@@ -47,7 +47,7 @@
     <section class="card">
       <div class="badges">
         <span class="badge">💬 Titulkový addon</span>
-        <span class="badge">📦 Verze 3.0.0</span>
+        <span id="versionBadge" class="badge">📦 Verze …</span>
         <div class="mode-switch" role="group" aria-label="Režim titulků">
           <button id="hybridMode" class="mode-btn active" type="button" aria-pressed="true">🔁 Hybrid</button>
           <button id="directMode" class="mode-btn test" type="button" aria-pressed="false">🧪 Direct test</button>
@@ -110,6 +110,7 @@ function copyText(value,input,status){
   }
 }
 
+const versionBadge=document.getElementById('versionBadge');
 const password=document.getElementById('password');
 const showPassword=document.getElementById('showPassword');
 const hybridMode=document.getElementById('hybridMode');
@@ -121,6 +122,23 @@ const stremioBtn=document.getElementById('stremioBtn');
 const generateBtn=document.getElementById('generate');
 let selectedMode='hybrid';
 let generatedToken='';
+
+async function loadVersionBadge(){
+  const candidates=['/health','/stremio-sosac-subtitles/health'];
+  for(const url of candidates){
+    try{
+      const response=await fetch(url,{cache:'no-store'});
+      if(!response.ok)continue;
+      const data=await response.json();
+      if(data&&data.version){
+        versionBadge.textContent=`📦 Verze ${data.version}`;
+        return;
+      }
+    }catch(_){}
+  }
+  versionBadge.textContent='📦 Verze';
+}
+
 
 function applyMode(mode){
   selectedMode=mode==='direct'?'direct':'hybrid';
@@ -196,6 +214,7 @@ document.getElementById('copyUrl').addEventListener('click',()=>{
 });
 
 applyMode('hybrid');
+loadVersionBadge();
 </script>
 </body>
 </html>
