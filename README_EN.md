@@ -12,7 +12,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/VERSION-v3.0.0-38BDF8?style=for-the-badge&labelColor=0284C7" alt="Sosáč Subtitles version 3.0.0" />
+  <img src="https://img.shields.io/github/package-json/v/CaseyCZ/stremio.sosac.subtitles?style=for-the-badge&label=VERSION&color=38BDF8&labelColor=0284C7" alt="Current Sosáč Subtitles version" />
 </p>
 
 <p align="center">
@@ -21,7 +21,7 @@
 
 ## About
 
-**Sosáč Subtitles** is a separate add-on focused only on subtitles. Version **3.0.0** uses the Streamuj Player API `d=19` to discover subtitle tracks and provides a default **Hybrid** mode plus a separate **Direct test** mode for client compatibility testing.
+**Sosáč Subtitles** is a separate add-on focused only on subtitles. The current architecture uses the Streamuj Player API `d=19` to discover subtitle tracks and provides a default **Hybrid** mode plus a separate **Direct test** mode for client compatibility testing.
 
 ## Main features
 
@@ -44,6 +44,12 @@ The two projects are **independent and are not technically linked**. This subtit
   <a href="https://130.61.49.108/configure"><img src="https://img.shields.io/badge/Stremio%20Sos%C3%A1%C4%8D-Configure-38BDF8?style=for-the-badge&labelColor=0284C7" alt="Stremio Sosáč configuration" /></a>
   <a href="https://github.com/CaseyCZ/stremio.sosac"><img src="https://img.shields.io/badge/Stremio%20Sos%C3%A1%C4%8D-GitHub-38BDF8?style=for-the-badge&labelColor=0284C7&logo=github&logoColor=white" alt="Stremio Sosáč GitHub" /></a>
 </p>
+
+## Versioning
+
+`package.json` is the single source of truth for the version number. The manifest and `/health` read it directly, the configuration page loads it from `/health`, and the README badge reads it automatically from `package.json`. A release version no longer needs to be edited in several places manually.
+
+Use `npm run release:patch`, `npm run release:minor` or `npm run release:major` to change the version; npm updates `package-lock.json` at the same time.
 
 ## Important
 
