@@ -21,22 +21,25 @@
 
 ## O projektu
 
-**Sosáč Subtitles** je samostatný addon určený pouze pro titulky. Od verze **3.0.0** dohledá titulky přes Streamuj Player API `d=19` a předá jejich URL přímo Stremiu; Oracle samotné titulkové soubory nepřenáší.
+**Sosáč Subtitles** je samostatný addon určený pouze pro titulky. Verze **3.0.0** používá Streamuj Player API `d=19` pro dohledání stop a nabízí výchozí **Hybrid** režim plus samostatný **Direct test** režim pro diagnostiku kompatibility klientů.
 
 ## Hlavní funkce
 
 - 💬 titulky pro filmy a seriály
 - 🇨🇿 čeština, slovenština a další jazyky podle dostupnosti
-- ↗️ přímé URL titulků ze Streamuj.tv
+- 🔁 výchozí Hybrid režim pro kompatibilní doručení titulků
+- 🧪 Direct test režim pro oddělené testování chování klientů
 - 🧭 Streamuj Player API `d=19` s HTML fallbackem pro dohledání URL
 - 🔗 rozpoznání titulu podle podporovaných identifikátorů
-- ⚡ krátká cache výsledků bez ukládání titulkových souborů na server
+- ⚡ krátká cache výsledků a připravených kompatibilních subtitle souborů
 - 🧩 samostatný addon, který nemění výběr video streamu
 - 📱 funguje na běžných Stremio klientech včetně webu, desktopu, Androidu / Google TV a Apple zařízení
 
 ## Související projekt
 
 Pro katalogy, metadata a video streamy použij hlavní **Stremio Sosáč** addon.
+
+Oba projekty jsou **samostatné a nejsou technicky propojené**. Tento titulkový addon nesdílí s hlavním addonem konfiguraci, přihlašovací údaje, cache ani zvolený režim. Každý se instaluje a aktualizuje nezávisle.
 
 <p>
   <a href="https://130.61.49.108/configure"><img src="https://img.shields.io/badge/Stremio%20Sos%C3%A1%C4%8D-Konfigurace-38BDF8?style=for-the-badge&labelColor=0284C7" alt="Stremio Sosáč konfigurace" /></a>
