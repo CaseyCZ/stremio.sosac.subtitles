@@ -21,21 +21,24 @@
 
 ## About
 
-**Sosáč Subtitles** is a separate add-on focused only on subtitles. It adds subtitles for movies and series in Stremio and works independently from the main video add-on.
+**Sosáč Subtitles** is a separate add-on focused only on subtitles. Version **3.0.0** uses the Streamuj Player API `d=19` to discover subtitle tracks and provides a default **Hybrid** mode plus a separate **Direct test** mode for client compatibility testing.
 
 ## Main features
 
 - 💬 subtitles for movies and series
 - 🇨🇿 Czech, Slovak and other languages when available
-- 🎞️ subtitles prepared for Stremio playback
+- 🔁 default Hybrid mode for compatible subtitle delivery
+- 🧪 Direct test mode for isolated client compatibility testing
 - 🔗 title matching using supported identifiers
-- ⚡ short result cache without storing subtitle files on the server
+- ⚡ short result cache and prepared compatibility subtitle files
 - 🧩 separate add-on that does not alter video stream selection
 - 📱 works with common Stremio clients including web, desktop, Android / Google TV and Apple devices
 
 ## Related project
 
 For catalogs, metadata and video streams use the main **Stremio Sosáč** add-on.
+
+The two projects are **independent and are not technically linked**. This subtitle add-on does not share configuration, credentials, cache or the selected mode with the main add-on. Each one is installed and updated independently.
 
 <p>
   <a href="https://130.61.49.108/configure"><img src="https://img.shields.io/badge/Stremio%20Sos%C3%A1%C4%8D-Configure-38BDF8?style=for-the-badge&labelColor=0284C7" alt="Stremio Sosáč configuration" /></a>
