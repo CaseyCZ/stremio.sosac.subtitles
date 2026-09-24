@@ -25,6 +25,7 @@ fi
 git merge --ff-only "origin/Master"
 
 npm ci --omit=dev --no-audit --no-fund
+npm run version:check
 node --check server.js && node --check index.js && node --check ecosystem.config.js
 
 pm2 restart "stremio-subtitles" --update-env
