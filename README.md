@@ -12,7 +12,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/VERZE-v3.0.0-38BDF8?style=for-the-badge&labelColor=0284C7" alt="Sosáč Subtitles verze 3.0.0" />
+  <img src="https://img.shields.io/github/package-json/v/CaseyCZ/stremio.sosac.subtitles?style=for-the-badge&label=VERZE&color=38BDF8&labelColor=0284C7" alt="Aktuální verze Sosáč Subtitles" />
 </p>
 
 <p align="center">
@@ -21,7 +21,7 @@
 
 ## O projektu
 
-**Sosáč Subtitles** je samostatný addon určený pouze pro titulky. Verze **3.0.0** používá Streamuj Player API `d=19` pro dohledání stop a nabízí výchozí **Hybrid** režim plus samostatný **Direct test** režim pro diagnostiku kompatibility klientů.
+**Sosáč Subtitles** je samostatný addon určený pouze pro titulky. Aktuální architektura používá Streamuj Player API `d=19` pro dohledání stop a nabízí výchozí **Hybrid** režim plus samostatný **Direct test** režim pro diagnostiku kompatibility klientů.
 
 ## Hlavní funkce
 
@@ -45,6 +45,12 @@ Oba projekty jsou **samostatné a nejsou technicky propojené**. Tento titulkov�
   <a href="https://130.61.49.108/configure"><img src="https://img.shields.io/badge/Stremio%20Sos%C3%A1%C4%8D-Konfigurace-38BDF8?style=for-the-badge&labelColor=0284C7" alt="Stremio Sosáč konfigurace" /></a>
   <a href="https://github.com/CaseyCZ/stremio.sosac"><img src="https://img.shields.io/badge/Stremio%20Sos%C3%A1%C4%8D-GitHub-38BDF8?style=for-the-badge&labelColor=0284C7&logo=github&logoColor=white" alt="Stremio Sosáč GitHub" /></a>
 </p>
+
+## Verzování
+
+Jediným zdrojem čísla verze je `package.json`. Manifest a `/health` čtou verzi přímo z něj, konfigurační stránka ji načítá z `/health` a badge v README ji načítá automaticky z `package.json`. Při vydání nové verze tedy není potřeba ručně přepisovat číslo na více místech.
+
+Pro změnu verze používej `npm run release:patch`, `npm run release:minor` nebo `npm run release:major`; npm současně aktualizuje i `package-lock.json`.
 
 ## Důležité
 
