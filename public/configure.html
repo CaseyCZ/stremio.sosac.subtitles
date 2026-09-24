@@ -29,6 +29,8 @@
     button:hover,.btn:hover{filter:brightness(1.12)}
     .toggle,.copy{flex:0 0 auto;padding:0 13px;background:#243149;border:1px solid var(--border)}
     .primary{width:100%;min-height:48px;margin-top:10px;font-size:1rem}
+    .primary.test{background:#7c3aed;box-shadow:0 0 0 2px rgba(124,58,237,.16)}
+    .primary.test:hover{background:#6d28d9}
     .note{margin:18px 0;padding:12px 14px;border:1px solid var(--border);border-radius:12px;background:var(--panel2);color:#cbd5e1;font-size:.86rem;line-height:1.45}
     #result{display:none;margin-top:22px;padding-top:20px;border-top:1px solid var(--border)}
     #installUrl{font-size:.78rem}
@@ -116,6 +118,7 @@ const modeLead=document.getElementById('modeLead');
 const installLabel=document.getElementById('installLabel');
 const modeNote=document.getElementById('modeNote');
 const stremioBtn=document.getElementById('stremioBtn');
+const generateBtn=document.getElementById('generate');
 let selectedMode='hybrid';
 let generatedToken='';
 
@@ -144,6 +147,7 @@ function applyMode(mode){
     ? 'Instalovat Direct test'
     : 'Instalovat Hybrid';
   stremioBtn.classList.toggle('test',direct);
+  generateBtn.classList.toggle('test',direct);
 
   if(generatedToken) updateInstallLink();
 }
