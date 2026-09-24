@@ -12,7 +12,11 @@
     .card{background:rgba(17,24,39,.96);border:1px solid var(--border);border-radius:22px;padding:28px;box-shadow:0 24px 70px rgba(0,0,0,.45)}
     .badges{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
     .badge{display:inline-flex;align-items:center;gap:7px;padding:6px 10px;border:1px solid #1d4ed8;border-radius:999px;background:#0f1f46;color:#bfdbfe;font-size:.78rem;font-weight:700}
-    .badge.test{border-color:#7c3aed;background:#261447;color:#ddd6fe}
+    .mode-switch{display:flex;gap:8px;flex-wrap:wrap}
+    .mode-btn{display:inline-flex;align-items:center;gap:7px;padding:6px 10px;border:1px solid #334155;border-radius:999px;background:#172033;color:#94a3b8;font-size:.78rem;font-weight:750;cursor:pointer}
+    .mode-btn:hover{filter:none;border-color:#475569;color:#e2e8f0}
+    .mode-btn.active{border-color:#1d4ed8;background:#0f1f46;color:#bfdbfe;box-shadow:0 0 0 2px rgba(29,78,216,.12)}
+    .mode-btn.test.active{border-color:#7c3aed;background:#261447;color:#ddd6fe;box-shadow:0 0 0 2px rgba(124,58,237,.12)}
     h1{margin:14px 0 6px;font-size:1.65rem;line-height:1.15}
     .lead{margin:0 0 24px;color:var(--muted);line-height:1.5}
     .field{margin:16px 0}
@@ -27,15 +31,13 @@
     .primary{width:100%;min-height:48px;margin-top:10px;font-size:1rem}
     .note{margin:18px 0;padding:12px 14px;border:1px solid var(--border);border-radius:12px;background:var(--panel2);color:#cbd5e1;font-size:.86rem;line-height:1.45}
     #result{display:none;margin-top:22px;padding-top:20px;border-top:1px solid var(--border)}
-    #installUrl,#directInstallUrl{font-size:.78rem}
+    #installUrl{font-size:.78rem}
     .btn{display:block;width:100%;padding:13px;margin-top:10px}
-    .install-actions{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px}
-    .install-actions .btn{margin-top:0}
     .btn.test{background:#6d28d9}
     .mode-note{margin:7px 2px 0;color:var(--muted);font-size:.78rem;line-height:1.4}
     #status{min-height:20px;margin-top:12px;color:var(--ok);font-size:.86rem}
     .foot{margin:14px 4px 0;color:#64748b;text-align:center;font-size:.76rem}
-    @media(max-width:520px){body{padding:14px}.card{padding:21px}.input-row,.result-row{gap:6px}.toggle,.copy{padding:0 10px}.install-actions{grid-template-columns:1fr}}
+    @media(max-width:520px){body{padding:14px}.card{padding:21px}.input-row,.result-row{gap:6px}.toggle,.copy{padding:0 10px}}
   </style>
 </head>
 <body>
@@ -44,11 +46,13 @@
       <div class="badges">
         <span class="badge">💬 Titulkový addon</span>
         <span class="badge">📦 Verze 3.0.0</span>
-        <span class="badge">🔁 Hybrid titulky</span>
-        <span class="badge test">🧪 Direct test</span>
+        <div class="mode-switch" role="group" aria-label="Režim titulků">
+          <button id="hybridMode" class="mode-btn active" type="button" aria-pressed="true">🔁 Hybrid</button>
+          <button id="directMode" class="mode-btn test" type="button" aria-pressed="false">🧪 Direct test</button>
+        </div>
       </div>
       <h1>Sosáč + Streamuj.tv – CZ Titulky</h1>
-      <p class="lead">Přihlas se k Sosáči a vygeneruj instalační odkazy. Hybrid je výchozí kompatibilní režim; Direct test necháváme vedle pro další testování.</p>
+      <p id="modeLead" class="lead">Přihlas se k Sosáči a vygeneruj instalační odkaz. Výchozí je Hybrid, který používáme pro běžné používání.</p>
 
       <div class="field">
         <label for="username">Sosáč uživatel</label>
@@ -69,27 +73,15 @@
 
       <div id="result">
         <div class="field">
-          <label for="installUrl">Hybrid – instalační odkaz</label>
+          <label id="installLabel" for="installUrl">Hybrid – instalační odkaz</label>
           <div class="result-row">
             <input id="installUrl" type="text" readonly spellcheck="false">
             <button id="copyUrl" class="copy" type="button">Kopírovat</button>
           </div>
-          <div class="mode-note">Výchozí kompatibilní varianta pro běžné používání.</div>
+          <div id="modeNote" class="mode-note">Výchozí kompatibilní varianta pro běžné používání.</div>
         </div>
 
-        <div class="field">
-          <label for="directInstallUrl">Direct test – instalační odkaz</label>
-          <div class="result-row">
-            <input id="directInstallUrl" type="text" readonly spellcheck="false">
-            <button id="copyDirectUrl" class="copy" type="button">Kopírovat</button>
-          </div>
-          <div class="mode-note">Testovací větev pro ověřování chování titulků bez zásahu do Hybridu.</div>
-        </div>
-
-        <div class="install-actions">
-          <a id="stremioBtn" class="btn" href="#">Instalovat Hybrid</a>
-          <a id="directStremioBtn" class="btn test" href="#">Instalovat Direct test</a>
-        </div>
+        <a id="stremioBtn" class="btn" href="#">Instalovat Hybrid</a>
         <div id="status" role="status" aria-live="polite"></div>
       </div>
     </section>
@@ -118,6 +110,56 @@ function copyText(value,input,status){
 
 const password=document.getElementById('password');
 const showPassword=document.getElementById('showPassword');
+const hybridMode=document.getElementById('hybridMode');
+const directMode=document.getElementById('directMode');
+const modeLead=document.getElementById('modeLead');
+const installLabel=document.getElementById('installLabel');
+const modeNote=document.getElementById('modeNote');
+const stremioBtn=document.getElementById('stremioBtn');
+let selectedMode='hybrid';
+let generatedToken='';
+
+function applyMode(mode){
+  selectedMode=mode==='direct'?'direct':'hybrid';
+  const direct=selectedMode==='direct';
+
+  hybridMode.classList.toggle('active',!direct);
+  directMode.classList.toggle('active',direct);
+  hybridMode.setAttribute('aria-pressed',String(!direct));
+  directMode.setAttribute('aria-pressed',String(direct));
+
+  modeLead.textContent=direct
+    ? 'Direct test je určený jen pro naše testování. Pro běžné používání nech Hybrid.'
+    : 'Přihlas se k Sosáči a vygeneruj instalační odkaz. Výchozí je Hybrid, který používáme pro běžné používání.';
+
+  installLabel.textContent=direct
+    ? 'Direct test – instalační odkaz'
+    : 'Hybrid – instalační odkaz';
+
+  modeNote.textContent=direct
+    ? 'Testovací režim. Použij jen když chceme ověřovat Direct variantu.'
+    : 'Výchozí kompatibilní varianta pro běžné používání.';
+
+  stremioBtn.textContent=direct
+    ? 'Instalovat Direct test'
+    : 'Instalovat Hybrid';
+  stremioBtn.classList.toggle('test',direct);
+
+  if(generatedToken) updateInstallLink();
+}
+
+function updateInstallLink(){
+  const path=selectedMode==='direct'
+    ? `/stremio-sosac-subtitles/${generatedToken}/direct-test/manifest.json`
+    : `/stremio-sosac-subtitles/${generatedToken}/manifest.json`;
+
+  document.getElementById('installUrl').value=`${location.origin}${path}`;
+  stremioBtn.href=`stremio://${location.host}${path}`;
+}
+
+hybridMode.addEventListener('click',()=>applyMode('hybrid'));
+directMode.addEventListener('click',()=>applyMode('direct'));
+
 showPassword.addEventListener('click',()=>{
   const show=password.type==='password';
   password.type=show?'text':'password';
@@ -129,17 +171,19 @@ document.getElementById('generate').addEventListener('click',()=>{
   const passwordValue=password.value;
   const status=document.getElementById('status');
   document.getElementById('result').style.display='block';
-  if(!username||!passwordValue){status.textContent='Vyplň uživatelské jméno a heslo.';return;}
-  const encoded=toBase64Url({username,password:passwordValue});
-  const hybridPath=`/stremio-sosac-subtitles/${encoded}/manifest.json`;
-  const directPath=`/stremio-sosac-subtitles/${encoded}/direct-test/manifest.json`;
-  const hybridManifest=`${location.origin}${hybridPath}`;
-  const directManifest=`${location.origin}${directPath}`;
-  document.getElementById('installUrl').value=hybridManifest;
-  document.getElementById('directInstallUrl').value=directManifest;
-  document.getElementById('stremioBtn').href=`stremio://${location.host}${hybridPath}`;
-  document.getElementById('directStremioBtn').href=`stremio://${location.host}${directPath}`;
-  status.textContent='Oba instalační odkazy jsou připravené.';
+  if(!username||!passwordValue){
+    generatedToken='';
+    document.getElementById('installUrl').value='';
+    stremioBtn.href='#';
+    status.textContent='Vyplň uživatelské jméno a heslo.';
+    return;
+  }
+
+  generatedToken=toBase64Url({username,password:passwordValue});
+  updateInstallLink();
+  status.textContent=selectedMode==='direct'
+    ? 'Připravený Direct test odkaz.'
+    : 'Připravený Hybrid odkaz.';
 });
 
 document.getElementById('copyUrl').addEventListener('click',()=>{
@@ -147,10 +191,7 @@ document.getElementById('copyUrl').addEventListener('click',()=>{
   copyText(input.value,input,document.getElementById('status'));
 });
 
-document.getElementById('copyDirectUrl').addEventListener('click',()=>{
-  const input=document.getElementById('directInstallUrl');
-  copyText(input.value,input,document.getElementById('status'));
-});
+applyMode('hybrid');
 </script>
 </body>
 </html>
