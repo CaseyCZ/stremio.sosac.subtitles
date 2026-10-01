@@ -97,7 +97,7 @@
   function showSettingsButton() {
     if (settingsButton || !document.body) return;
     ensureStyle();
-    let footer = document.querySelector('footer');
+    let footer = document.querySelector('[data-cookie-settings-host], footer, .foot, .footer, .site-footer');
     if (!footer) {
       footer = document.createElement('footer');
       footer.className = 'caseycz-privacy-footer';
@@ -140,7 +140,7 @@
     if (consent === 'granted') loadAnalytics();
     else if (consent === 'denied') disableAnalytics();
     else showBanner();
-    if (consent) showSettingsButton();
+    showSettingsButton();
   }
   window.CaseyCZAnalytics = Object.freeze({
     consent: readConsent,
