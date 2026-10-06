@@ -2,394 +2,201 @@
 <html lang="cs">
 <head>
 <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <link rel="canonical" href="https://130.61.49.108:8443/configure">
-  <title>Sosáč + Streamuj.tv – CZ Titulky pro Stremio</title>
-<!-- Google Analytics loads only after explicit consent. -->
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="canonical" href="https://130.61.49.108:8443/configure">
+<title>Sosáč + Streamuj.tv – CZ Titulky pro Stremio a Nuvio</title>
 <script>
 (() => {
-  const MEASUREMENT_ID = 'G-SZTERTRTCE';
-  const CONSENT_KEY = 'stremio-subtitles-analytics-consent-v1';
-  const PAGE_TITLE = String(document.querySelector('meta[name="analytics-page-title"]')?.content || document.title || location.hostname).trim() || location.hostname;
-  const PAGE_LOCATION = `${location.origin}${location.pathname}${location.search}`;
-  let loaded = false;
-  let banner = null;
-  let settingsButton = null;
-
-  const COPY = {
-    en: { title:'Analytics cookies', text:'This site uses Google Analytics only if you choose Accept. Rejecting keeps analytics disabled.', accept:'Accept analytics', reject:'Reject', settings:'Cookie settings' },
-    cs: { title:'Analytické cookies', text:'Tento web používá Google Analytics pouze pokud zvolíte Přijmout. Odmítnutím zůstane analytika vypnutá.', accept:'Přijmout analytiku', reject:'Odmítnout', settings:'Nastavení cookies' },
-    de: { title:'Analyse-Cookies', text:'Diese Website verwendet Google Analytics nur mit Ihrer Zustimmung. Bei Ablehnung bleibt die Analyse deaktiviert.', accept:'Analyse akzeptieren', reject:'Ablehnen', settings:'Cookie-Einstellungen' },
-    es: { title:'Cookies de análisis', text:'Este sitio usa Google Analytics solo si eliges Aceptar. Si rechazas, el análisis permanece desactivado.', accept:'Aceptar análisis', reject:'Rechazar', settings:'Configuración de cookies' },
-    fr: { title:'Cookies de mesure', text:'Ce site utilise Google Analytics uniquement si vous l’acceptez. En cas de refus, la mesure reste désactivée.', accept:'Accepter la mesure', reject:'Refuser', settings:'Paramètres des cookies' }
+  const MEASUREMENT_ID='G-SZTERTRTCE';
+  const CONSENT_KEY='stremio-subtitles-analytics-consent-v1';
+  const COPY={
+    en:{title:'Analytics cookies',text:'This site uses Google Analytics only if you choose Accept. Rejecting keeps analytics disabled.',accept:'Accept analytics',reject:'Reject',settings:'Cookie settings'},
+    cs:{title:'Analytické cookies',text:'Tento web používá Google Analytics pouze pokud zvolíte Přijmout. Odmítnutím zůstane analytika vypnutá.',accept:'Přijmout analytiku',reject:'Odmítnout',settings:'Nastavení cookies'},
+    de:{title:'Analyse-Cookies',text:'Diese Website verwendet Google Analytics nur mit Ihrer Zustimmung. Bei Ablehnung bleibt die Analyse deaktiviert.',accept:'Analyse akzeptieren',reject:'Ablehnen',settings:'Cookie-Einstellungen'},
+    es:{title:'Cookies de análisis',text:'Este sitio usa Google Analytics solo si eliges Aceptar. Si rechazas, el análisis permanece desactivado.',accept:'Aceptar análisis',reject:'Rechazar',settings:'Configuración de cookies'},
+    fr:{title:'Cookies de mesure',text:'Ce site utilise Google Analytics uniquement si vous l’acceptez. En cas de refus, la mesure reste désactivée.',accept:'Accepter la mesure',reject:'Refuser',settings:'Paramètres des cookies'}
   };
-
-  function lang() {
-    const value = String(document.documentElement.lang || navigator.language || 'en').toLowerCase().split('-')[0];
-    return COPY[value] ? value : 'en';
+  let loaded=false,banner=null,settingsButton=null;
+  const lang=()=>{const v=String(document.documentElement.lang||navigator.language||'en').toLowerCase().split('-')[0];return COPY[v]?v:'en';};
+  const copy=()=>COPY[lang()];
+  const readConsent=()=>{try{return localStorage.getItem(CONSENT_KEY);}catch(_){return null;}};
+  const writeConsent=v=>{try{localStorage.setItem(CONSENT_KEY,v);}catch(_){}};
+  function gtag(){window.dataLayer=window.dataLayer||[];window.dataLayer.push(arguments);}
+  function loadAnalytics(){
+    if(loaded||document.querySelector('script[data-caseycz-analytics]'))return;
+    loaded=true;window.dataLayer=window.dataLayer||[];window.gtag=gtag;
+    gtag('consent','default',{analytics_storage:'granted',ad_storage:'denied',ad_user_data:'denied',ad_personalization:'denied'});
+    gtag('js',new Date());
+    gtag('config',MEASUREMENT_ID,{allow_google_signals:false,allow_ad_personalization_signals:false,page_title:document.title,page_location:`${location.origin}${location.pathname}${location.search}`});
+    const tag=document.createElement('script');tag.async=true;tag.dataset.caseyczAnalytics='true';tag.src=`https://www.googletagmanager.com/gtag/js?id=${encodeURIComponent(MEASUREMENT_ID)}`;document.head.appendChild(tag);
   }
-  function copy() { return COPY[lang()]; }
-  function readConsent() {
-    try { return localStorage.getItem(CONSENT_KEY); } catch (_) { return null; }
-  }
-  function writeConsent(value) {
-    try { localStorage.setItem(CONSENT_KEY, value); } catch (_) {}
-  }
-  function gtag() {
-    window.dataLayer = window.dataLayer || [];
-    window.dataLayer.push(arguments);
-  }
-  function loadAnalytics() {
-    if (loaded || document.querySelector('script[data-caseycz-analytics]')) return;
-    loaded = true;
-    window.dataLayer = window.dataLayer || [];
-    window.gtag = gtag;
-    gtag('consent', 'default', {
-      analytics_storage: 'granted',
-      ad_storage: 'denied',
-      ad_user_data: 'denied',
-      ad_personalization: 'denied'
-    });
-    gtag('js', new Date());
-    gtag('config', MEASUREMENT_ID, {
-      allow_google_signals: false,
-      allow_ad_personalization_signals: false,
-      page_title: PAGE_TITLE,
-      page_location: PAGE_LOCATION
-    });
-    const tag = document.createElement('script');
-    tag.async = true;
-    tag.dataset.caseyczAnalytics = 'true';
-    tag.src = `https://www.googletagmanager.com/gtag/js?id=${encodeURIComponent(MEASUREMENT_ID)}`;
-    document.head.appendChild(tag);
-  }
-  function expireCookie(name) {
-    const domains = ['', location.hostname, `.${location.hostname}`];
-    for (const domain of domains) {
-      document.cookie = `${name}=; Max-Age=0; path=/; SameSite=Lax${domain ? `; domain=${domain}` : ''}`;
-    }
-  }
-  function disableAnalytics() {
-    if (window.gtag) {
-      window.gtag('consent', 'update', {
-        analytics_storage: 'denied',
-        ad_storage: 'denied',
-        ad_user_data: 'denied',
-        ad_personalization: 'denied'
-      });
-    }
-    expireCookie('_ga');
-    expireCookie('_ga_SZTERTRTCE');
-  }
-  function ensureStyle() {
-    if (document.getElementById('caseycz-consent-style')) return;
-    const style = document.createElement('style');
-    style.id = 'caseycz-consent-style';
-    style.textContent = `
+  function expireCookie(name){for(const domain of ['',location.hostname,`.${location.hostname}`])document.cookie=`${name}=; Max-Age=0; path=/; SameSite=Lax${domain?`; domain=${domain}`:''}`;}
+  function disableAnalytics(){if(window.gtag)window.gtag('consent','update',{analytics_storage:'denied',ad_storage:'denied',ad_user_data:'denied',ad_personalization:'denied'});expireCookie('_ga');expireCookie('_ga_SZTERTRTCE');}
+  function ensureStyle(){
+    if(document.getElementById('caseycz-consent-style'))return;
+    const style=document.createElement('style');style.id='caseycz-consent-style';style.textContent=`
       .caseycz-consent{position:fixed;z-index:2147483646;left:50%;bottom:max(14px,env(safe-area-inset-bottom));transform:translateX(-50%);width:min(680px,calc(100% - 24px));box-sizing:border-box;padding:14px;border:1px solid rgba(127,127,127,.35);border-radius:14px;background:rgba(20,22,28,.97);color:#fff;box-shadow:0 14px 42px rgba(0,0,0,.35);font:14px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;display:flex;gap:14px;align-items:center}
       .caseycz-consent-copy{flex:1;min-width:0}.caseycz-consent-copy strong{display:block;margin-bottom:3px}.caseycz-consent-copy span{opacity:.8}
       .caseycz-consent-actions{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}.caseycz-consent button,.caseycz-cookie-settings{font:inherit;font-weight:700;cursor:pointer;border-radius:10px;border:1px solid rgba(127,127,127,.4);min-height:38px;padding:0 12px}
       .caseycz-consent [data-accept]{background:#0a84ff;border-color:#0a84ff;color:#fff}.caseycz-consent [data-reject]{background:transparent;color:#fff}
-      .caseycz-cookie-settings-wrap{display:flex;justify-content:center;align-items:center;margin-top:10px}
-      .caseycz-cookie-settings{min-height:32px;padding:0;border:0;background:transparent;color:inherit;font-size:12px;text-decoration:underline;text-underline-offset:3px;opacity:.75}
-      .caseycz-cookie-settings:hover{opacity:1}
-      .caseycz-privacy-footer{padding:14px 16px;text-align:center;color:#94a3b8;font:12px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+      .caseycz-cookie-settings-wrap{display:flex;justify-content:center;align-items:center;margin-top:10px}.caseycz-cookie-settings{min-height:32px;padding:0;border:0;background:transparent;color:inherit;font-size:12px;text-decoration:underline;text-underline-offset:3px;opacity:.75}.caseycz-cookie-settings:hover{opacity:1}
       @media(max-width:600px){.caseycz-consent{align-items:stretch;flex-direction:column}.caseycz-consent-actions{display:grid;grid-template-columns:1fr 1fr;width:100%}.caseycz-consent button{width:100%}}
-    `;
-    document.head.appendChild(style);
+    `;document.head.appendChild(style);
   }
-  function closeBanner() {
-    if (!banner) return;
-    banner.remove();
-    banner = null;
+  function closeBanner(){if(banner){banner.remove();banner=null;}}
+  function showSettingsButton(){
+    if(!document.body)return;ensureStyle();
+    const existing=document.querySelector('[data-cookie-settings]');
+    if(existing){settingsButton=existing;settingsButton.textContent=copy().settings;settingsButton.setAttribute('aria-label',copy().title);if(settingsButton.dataset.cookieSettingsBound!=='true'){settingsButton.dataset.cookieSettingsBound='true';settingsButton.addEventListener('click',e=>{e.preventDefault();showBanner(true);});}return;}
   }
-  function showSettingsButton() {
-    if (!document.body) return;
-    ensureStyle();
-
-    const existing = document.querySelector('[data-cookie-settings]');
-    if (existing) {
-      settingsButton = existing;
-      settingsButton.textContent = copy().settings;
-      settingsButton.setAttribute('aria-label', copy().title);
-      if (settingsButton.dataset.cookieSettingsBound !== 'true') {
-        settingsButton.dataset.cookieSettingsBound = 'true';
-        settingsButton.addEventListener('click', event => {
-          event.preventDefault();
-          showBanner(true);
-        });
-      }
-      return;
-    }
-
-    if (settingsButton) return;
-    let footer = document.querySelector('[data-cookie-settings-host], footer, .foot, .footer, .site-footer');
-    if (!footer) {
-      footer = document.createElement('footer');
-      footer.className = 'caseycz-privacy-footer';
-      document.body.appendChild(footer);
-    }
-
-    const wrap = document.createElement('div');
-    wrap.className = 'caseycz-cookie-settings-wrap';
-    settingsButton = document.createElement('button');
-    settingsButton.type = 'button';
-    settingsButton.className = 'caseycz-cookie-settings';
-    settingsButton.dataset.cookieSettings = '';
-    settingsButton.textContent = copy().settings;
-    settingsButton.setAttribute('aria-label', copy().title);
-    settingsButton.dataset.cookieSettingsBound = 'true';
-    settingsButton.addEventListener('click', () => showBanner(true));
-    wrap.appendChild(settingsButton);
-    footer.appendChild(wrap);
+  function setConsent(value){writeConsent(value);if(value==='granted')loadAnalytics();else disableAnalytics();closeBanner();showSettingsButton();}
+  function showBanner(force=false){
+    if(banner||!document.body||(!force&&readConsent()))return;ensureStyle();const t=copy();banner=document.createElement('section');banner.className='caseycz-consent';banner.setAttribute('role','dialog');banner.setAttribute('aria-label',t.title);banner.innerHTML=`<div class="caseycz-consent-copy"><strong>${t.title}</strong><span>${t.text}</span></div><div class="caseycz-consent-actions"><button type="button" data-accept>${t.accept}</button><button type="button" data-reject>${t.reject}</button></div>`;banner.querySelector('[data-accept]').addEventListener('click',()=>setConsent('granted'));banner.querySelector('[data-reject]').addEventListener('click',()=>setConsent('denied'));document.body.appendChild(banner);
   }
-  function setConsent(value) {
-    writeConsent(value);
-    if (value === 'granted') loadAnalytics();
-    else disableAnalytics();
-    closeBanner();
-    showSettingsButton();
-  }
-  function showBanner(force = false) {
-    if (banner || !document.body) return;
-    if (!force && readConsent()) return;
-    ensureStyle();
-    const t = copy();
-    banner = document.createElement('section');
-    banner.className = 'caseycz-consent';
-    banner.setAttribute('role', 'dialog');
-    banner.setAttribute('aria-label', t.title);
-    banner.innerHTML = `<div class="caseycz-consent-copy"><strong>${t.title}</strong><span>${t.text}</span></div><div class="caseycz-consent-actions"><button type="button" data-accept>${t.accept}</button><button type="button" data-reject>${t.reject}</button></div>`;
-    banner.querySelector('[data-accept]')?.addEventListener('click', () => setConsent('granted'));
-    banner.querySelector('[data-reject]')?.addEventListener('click', () => setConsent('denied'));
-    document.body.appendChild(banner);
-  }
-  function init() {
-    const consent = readConsent();
-    if (consent === 'granted') loadAnalytics();
-    else if (consent === 'denied') disableAnalytics();
-    else showBanner();
-    showSettingsButton();
-  }
-  window.CaseyCZAnalytics = Object.freeze({
-    consent: readConsent,
-    showSettings: () => showBanner(true)
-  });
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init, {once:true});
-  else init();
+  function init(){const consent=readConsent();if(consent==='granted')loadAnalytics();else if(consent==='denied')disableAnalytics();else showBanner();showSettingsButton();}
+  window.CaseyCZAnalytics=Object.freeze({consent:readConsent,showSettings:()=>showBanner(true)});
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init,{once:true});else init();
 })();
 </script>
-  <style>
-    :root{color-scheme:dark;--bg:#0b1020;--panel:#111827;--panel2:#172033;--border:#2a3850;--text:#f8fafc;--muted:#94a3b8;--accent:#38bdf8;--accent2:#0284c7;--ok:#86efac}
-    *{box-sizing:border-box}
-    body{margin:0;min-height:100vh;display:grid;place-items:center;padding:24px;background:radial-gradient(circle at top,#172554 0,#0b1020 42%,#070b14 100%);font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:var(--text)}
-    .wrap{width:min(100%,560px)}
-    .card{background:rgba(17,24,39,.96);border:1px solid var(--border);border-radius:22px;padding:28px;box-shadow:0 24px 70px rgba(0,0,0,.45)}
-    .badges{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
-    .badge{display:inline-flex;align-items:center;gap:7px;padding:6px 10px;border:1px solid #1d4ed8;border-radius:999px;background:#0f1f46;color:#bfdbfe;font-size:.78rem;font-weight:700}
-    .mode-switch{display:flex;gap:8px;flex-wrap:wrap}
-    .mode-btn{display:inline-flex;align-items:center;gap:7px;padding:6px 10px;border:1px solid #334155;border-radius:999px;background:#172033;color:#94a3b8;font-size:.78rem;font-weight:750;cursor:pointer}
-    .mode-btn:hover{filter:none;border-color:#475569;color:#e2e8f0}
-    .mode-btn.active{border-color:#1d4ed8;background:#0f1f46;color:#bfdbfe;box-shadow:0 0 0 2px rgba(29,78,216,.12)}
-    .mode-btn.test.active{border-color:#7c3aed;background:#261447;color:#ddd6fe;box-shadow:0 0 0 2px rgba(124,58,237,.12)}
-    h1{margin:14px 0 6px;font-size:1.65rem;line-height:1.15}
-    .lead{margin:0 0 24px;color:var(--muted);line-height:1.5}
-    .field{margin:16px 0}
-    label{display:block;margin-bottom:7px;color:#dbeafe;font-size:.9rem;font-weight:650}
-    input{width:100%;min-height:46px;border:1px solid var(--border);border-radius:12px;background:#0b1220;color:var(--text);padding:0 13px;font:inherit;outline:none}
-    input:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(56,189,248,.12)}
-    .input-row,.result-row{display:flex;gap:8px;align-items:stretch}
-    .input-row input,.result-row input{min-width:0;flex:1}
-    button,.btn{border:0;border-radius:12px;background:var(--accent2);color:#fff;font:inherit;font-weight:750;cursor:pointer;text-decoration:none;text-align:center;transition:.15s ease}
-    button:hover,.btn:hover{filter:brightness(1.12)}
-    .toggle,.copy{flex:0 0 auto;padding:0 13px;background:#243149;border:1px solid var(--border)}
-    .primary{width:100%;min-height:48px;margin-top:10px;font-size:1rem}
-    .primary.test{background:#7c3aed;box-shadow:0 0 0 2px rgba(124,58,237,.16)}
-    .primary.test:hover{background:#6d28d9}
-    .note{margin:18px 0;padding:12px 14px;border:1px solid var(--border);border-radius:12px;background:var(--panel2);color:#cbd5e1;font-size:.86rem;line-height:1.45}
-    #result{display:none;margin-top:22px;padding-top:20px;border-top:1px solid var(--border)}
-    #installUrl{font-size:.78rem}
-    .btn{display:block;width:100%;padding:13px;margin-top:10px}
-    .btn.test{background:#6d28d9}
-    .mode-note{margin:7px 2px 0;color:var(--muted);font-size:.78rem;line-height:1.4}
-    #status{min-height:20px;margin-top:12px;color:var(--ok);font-size:.86rem}
-    .foot{margin:14px 4px 0;color:#64748b;text-align:center;font-size:.76rem}\n    .cookie-settings-link{border:0;background:transparent;color:inherit;padding:0;font:inherit;text-decoration:underline;text-underline-offset:3px;cursor:pointer}
-    @media(max-width:520px){body{padding:14px}.card{padding:21px}.input-row,.result-row{gap:6px}.toggle,.copy{padding:0 10px}}
-  </style>
+<style>
+:root{color-scheme:dark;--bg:#0b1020;--panel:#111827;--panel2:#172033;--border:#2a3850;--text:#f8fafc;--muted:#94a3b8;--accent:#38bdf8;--accent2:#0284c7;--ok:#86efac}
+*{box-sizing:border-box}
+body{margin:0;min-height:100vh;display:grid;place-items:center;padding:24px;background:radial-gradient(circle at top,#172554 0,#0b1020 42%,#070b14 100%);font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:var(--text)}
+.wrap{width:min(100%,560px)}
+.card{background:rgba(17,24,39,.96);border:1px solid var(--border);border-radius:22px;padding:28px;box-shadow:0 24px 70px rgba(0,0,0,.45)}
+.badges{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.badge{display:inline-flex;align-items:center;gap:7px;padding:6px 10px;border:1px solid #1d4ed8;border-radius:999px;background:#0f1f46;color:#bfdbfe;font-size:.78rem;font-weight:700}
+.switch-block{margin-top:14px}.switch-title{margin:0 0 7px;color:#94a3b8;font-size:.75rem;font-weight:800;letter-spacing:.06em;text-transform:uppercase}
+.mode-switch{display:flex;gap:8px;flex-wrap:wrap}
+.mode-btn{display:inline-flex;align-items:center;gap:7px;padding:6px 10px;border:1px solid #334155;border-radius:999px;background:#172033;color:#94a3b8;font-size:.78rem;font-weight:750;cursor:pointer}
+.mode-btn:hover{filter:none;border-color:#475569;color:#e2e8f0}.mode-btn.active{border-color:#1d4ed8;background:#0f1f46;color:#bfdbfe;box-shadow:0 0 0 2px rgba(29,78,216,.12)}.mode-btn.test.active{border-color:#7c3aed;background:#261447;color:#ddd6fe;box-shadow:0 0 0 2px rgba(124,58,237,.12)}
+.client-btn.active{border-color:#0ea5e9;background:#082f49;color:#bae6fd;box-shadow:0 0 0 2px rgba(14,165,233,.12)}.client-btn.nuvio.active{border-color:#14b8a6;background:#0f3434;color:#99f6e4;box-shadow:0 0 0 2px rgba(20,184,166,.12)}
+h1{margin:18px 0 6px;font-size:1.65rem;line-height:1.15}.lead{margin:0 0 24px;color:var(--muted);line-height:1.5}.field{margin:16px 0}label{display:block;margin-bottom:7px;color:#dbeafe;font-size:.9rem;font-weight:650}
+input{width:100%;min-height:46px;border:1px solid var(--border);border-radius:12px;background:#0b1220;color:var(--text);padding:0 13px;font:inherit;outline:none}input:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(56,189,248,.12)}
+.input-row,.result-row{display:flex;gap:8px;align-items:stretch}.input-row input,.result-row input{min-width:0;flex:1}
+button,.btn{border:0;border-radius:12px;background:var(--accent2);color:#fff;font:inherit;font-weight:750;cursor:pointer;text-decoration:none;text-align:center;transition:.15s ease}button:hover,.btn:hover{filter:brightness(1.12)}
+.toggle,.copy{flex:0 0 auto;padding:0 13px;background:#243149;border:1px solid var(--border)}.primary{width:100%;min-height:48px;margin-top:10px;font-size:1rem}.primary.test{background:#7c3aed;box-shadow:0 0 0 2px rgba(124,58,237,.16)}.primary.test:hover{background:#6d28d9}
+.note{margin:18px 0;padding:12px 14px;border:1px solid var(--border);border-radius:12px;background:var(--panel2);color:#cbd5e1;font-size:.86rem;line-height:1.45}#result{display:none;margin-top:22px;padding-top:20px;border-top:1px solid var(--border)}#installUrl{font-size:.78rem}.btn{display:block;width:100%;padding:13px;margin-top:10px}.btn.test{background:#6d28d9}.btn.nuvio:not(.test){background:#0f766e}.mode-note{margin:7px 2px 0;color:var(--muted);font-size:.78rem;line-height:1.4}#status{min-height:20px;margin-top:12px;color:var(--ok);font-size:.86rem}.foot{margin:14px 4px 0;color:#64748b;text-align:center;font-size:.76rem}.cookie-settings-link{border:0;background:transparent;color:inherit;padding:0;font:inherit;text-decoration:underline;text-underline-offset:3px;cursor:pointer}
+@media(max-width:520px){body{padding:14px}.card{padding:21px}.input-row,.result-row{gap:6px}.toggle,.copy{padding:0 10px}.switch-block{margin-top:12px}}
+</style>
 </head>
 <body>
-  <main class="wrap">
-    <section class="card">
-      <div class="badges">
-        <span class="badge">💬 Titulkový addon</span>
-        <span id="versionBadge" class="badge">📦 Verze …</span>
-        <div class="mode-switch" role="group" aria-label="Režim titulků">
-          <button id="hybridMode" class="mode-btn active" type="button" aria-pressed="true">🔁 Hybrid</button>
-          <button id="directMode" class="mode-btn test" type="button" aria-pressed="false">🧪 Direct test</button>
-        </div>
+<main class="wrap">
+<section class="card">
+  <div class="badges">
+    <span class="badge">💬 Titulkový addon</span>
+    <span id="versionBadge" class="badge">📦 Verze …</span>
+  </div>
+
+  <div class="switch-block">
+    <div class="switch-title">Klient</div>
+    <div class="mode-switch" role="group" aria-label="Cílová aplikace">
+      <button id="stremioClient" class="mode-btn client-btn active" type="button" aria-pressed="true">▶️ Stremio</button>
+      <button id="nuvioClient" class="mode-btn client-btn nuvio" type="button" aria-pressed="false">🟣 Nuvio</button>
+    </div>
+  </div>
+
+  <div class="switch-block">
+    <div class="switch-title">Režim</div>
+    <div class="mode-switch" role="group" aria-label="Režim titulků">
+      <button id="hybridMode" class="mode-btn active" type="button" aria-pressed="true">🔁 Hybrid</button>
+      <button id="directMode" class="mode-btn test" type="button" aria-pressed="false">🧪 Direct test</button>
+    </div>
+  </div>
+
+  <h1>Sosáč + Streamuj.tv – CZ Titulky</h1>
+  <p id="modeLead" class="lead">Přihlas se k Sosáči a vygeneruj instalační odkaz. Výchozí je Stremio + Hybrid.</p>
+
+  <div class="field">
+    <label for="username">Sosáč uživatel</label>
+    <input id="username" autocomplete="username" placeholder="Uživatelské jméno">
+  </div>
+
+  <div class="field">
+    <label for="password">Sosáč heslo</label>
+    <div class="input-row">
+      <input id="password" type="password" autocomplete="current-password" placeholder="••••••••">
+      <button id="showPassword" class="toggle" type="button">Zobrazit</button>
+    </div>
+  </div>
+
+  <div class="note">Instalační konfigurace je v odkazu zapsaná jako Base64URL. Není běžně čitelná na první pohled, ale Base64 není šifrování, proto instalační odkaz nesdílej.</div>
+
+  <button id="generate" class="primary" type="button">Vygenerovat instalační odkaz</button>
+
+  <div id="result">
+    <div class="field">
+      <label id="installLabel" for="installUrl">Hybrid – instalační odkaz</label>
+      <div class="result-row">
+        <input id="installUrl" type="text" readonly spellcheck="false">
+        <button id="copyUrl" class="copy" type="button">Kopírovat</button>
       </div>
-      <h1>Sosáč + Streamuj.tv – CZ Titulky</h1>
-      <p id="modeLead" class="lead">Přihlas se k Sosáči a vygeneruj instalační odkaz. Výchozí je Hybrid, který používáme pro běžné používání.</p>
-
-      <div class="field">
-        <label for="username">Sosáč uživatel</label>
-        <input id="username" autocomplete="username" placeholder="Uživatelské jméno">
-      </div>
-
-      <div class="field">
-        <label for="password">Sosáč heslo</label>
-        <div class="input-row">
-          <input id="password" type="password" autocomplete="current-password" placeholder="••••••••">
-          <button id="showPassword" class="toggle" type="button">Zobrazit</button>
-        </div>
-      </div>
-
-      <div class="note">Instalační konfigurace je v odkazu zapsaná jako Base64URL. Není běžně čitelná na první pohled, ale Base64 není šifrování, proto instalační odkaz nesdílej.</div>
-
-      <button id="generate" class="primary" type="button">Vygenerovat instalační odkaz</button>
-
-      <div id="result">
-        <div class="field">
-          <label id="installLabel" for="installUrl">Hybrid – instalační odkaz</label>
-          <div class="result-row">
-            <input id="installUrl" type="text" readonly spellcheck="false">
-            <button id="copyUrl" class="copy" type="button">Kopírovat</button>
-          </div>
-          <div id="modeNote" class="mode-note">Výchozí kompatibilní varianta pro běžné používání.</div>
-        </div>
-
-        <a id="stremioBtn" class="btn" href="#">Instalovat Hybrid</a>
-        <div id="status" role="status" aria-live="polite"></div>
-      </div>
-    </section>
-    <div class="foot" data-cookie-settings-host>Neoficiální komunitní addon pro Stremio. · <button type="button" class="cookie-settings-link" data-cookie-settings>Nastavení cookies</button></div>
-  </main>
-
+      <div id="modeNote" class="mode-note">Výchozí kompatibilní varianta pro běžné používání.</div>
+    </div>
+    <a id="installBtn" class="btn" href="#">Instalovat Hybrid do Stremio</a>
+    <div id="status" role="status" aria-live="polite"></div>
+  </div>
+</section>
+<div class="foot" data-cookie-settings-host>Neoficiální komunitní addon pro Stremio a Nuvio. · <button type="button" class="cookie-settings-link" data-cookie-settings>Nastavení cookies</button></div>
+</main>
 <script>
-function toBase64Url(obj){
-  const bytes=new TextEncoder().encode(JSON.stringify(obj));
-  let binary='';
-  bytes.forEach(b=>binary+=String.fromCharCode(b));
-  return btoa(binary).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
-}
-
-function copyText(value,input,status){
-  if(!value)return;
-  if(navigator.clipboard&&navigator.clipboard.writeText){
-    navigator.clipboard.writeText(value).then(()=>status.textContent='Odkaz zkopírován.').catch(()=>fallback());
-  }else fallback();
-  function fallback(){
-    input.focus();input.select();
-    try{document.execCommand('copy');status.textContent='Odkaz zkopírován.';}
-    catch(e){status.textContent='Odkaz je označený. Zkopíruj ho ručně.';}
-  }
-}
+function toBase64Url(obj){const bytes=new TextEncoder().encode(JSON.stringify(obj));let binary='';bytes.forEach(b=>binary+=String.fromCharCode(b));return btoa(binary).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');}
+function copyText(value,input,status){if(!value)return;if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(value).then(()=>status.textContent='Odkaz zkopírován.').catch(()=>fallback());}else fallback();function fallback(){input.focus();input.select();try{document.execCommand('copy');status.textContent='Odkaz zkopírován.';}catch(e){status.textContent='Odkaz je označený. Zkopíruj ho ručně.';}}}
 
 const versionBadge=document.getElementById('versionBadge');
 const password=document.getElementById('password');
 const showPassword=document.getElementById('showPassword');
+const stremioClient=document.getElementById('stremioClient');
+const nuvioClient=document.getElementById('nuvioClient');
 const hybridMode=document.getElementById('hybridMode');
 const directMode=document.getElementById('directMode');
 const modeLead=document.getElementById('modeLead');
 const installLabel=document.getElementById('installLabel');
 const modeNote=document.getElementById('modeNote');
-const stremioBtn=document.getElementById('stremioBtn');
+const installBtn=document.getElementById('installBtn');
 const generateBtn=document.getElementById('generate');
+let selectedClient='stremio';
 let selectedMode='hybrid';
 let generatedToken='';
 
 async function loadVersionBadge(){
   const candidates=['/health','/stremio-sosac-subtitles/health'];
-  for(const url of candidates){
-    try{
-      const response=await fetch(url,{cache:'no-store'});
-      if(!response.ok)continue;
-      const data=await response.json();
-      if(data&&data.version){
-        versionBadge.textContent=`📦 Verze ${data.version}`;
-        return;
-      }
-    }catch(_){}
-  }
+  for(const url of candidates){try{const response=await fetch(url,{cache:'no-store'});if(!response.ok)continue;const data=await response.json();if(data&&data.version){versionBadge.textContent=`📦 Verze ${data.version}`;return;}}catch(_){}}
   versionBadge.textContent='📦 Verze';
 }
 
-
-function applyMode(mode){
-  selectedMode=mode==='direct'?'direct':'hybrid';
+function refreshUi(){
   const direct=selectedMode==='direct';
-
-  hybridMode.classList.toggle('active',!direct);
-  directMode.classList.toggle('active',direct);
-  hybridMode.setAttribute('aria-pressed',String(!direct));
-  directMode.setAttribute('aria-pressed',String(direct));
-
-  modeLead.textContent=direct
-    ? 'Direct test je určený jen pro naše testování. Pro běžné používání nech Hybrid.'
-    : 'Přihlas se k Sosáči a vygeneruj instalační odkaz. Výchozí je Hybrid, který používáme pro běžné používání.';
-
-  installLabel.textContent=direct
-    ? 'Direct test – instalační odkaz'
-    : 'Hybrid – instalační odkaz';
-
-  modeNote.textContent=direct
-    ? 'Testovací režim. Použij jen když chceme ověřovat Direct variantu.'
-    : 'Výchozí kompatibilní varianta pro běžné používání.';
-
-  stremioBtn.textContent=direct
-    ? 'Instalovat Direct test'
-    : 'Instalovat Hybrid';
-  stremioBtn.classList.toggle('test',direct);
-  generateBtn.classList.toggle('test',direct);
-
-  if(generatedToken) updateInstallLink();
+  const nuvio=selectedClient==='nuvio';
+  stremioClient.classList.toggle('active',!nuvio);nuvioClient.classList.toggle('active',nuvio);stremioClient.setAttribute('aria-pressed',String(!nuvio));nuvioClient.setAttribute('aria-pressed',String(nuvio));
+  hybridMode.classList.toggle('active',!direct);directMode.classList.toggle('active',direct);hybridMode.setAttribute('aria-pressed',String(!direct));directMode.setAttribute('aria-pressed',String(direct));
+  modeLead.textContent=direct?'Direct test je určený jen pro naše testování. Pro běžné používání nech Hybrid.':`Přihlas se k Sosáči a vygeneruj instalační odkaz pro ${nuvio?'Nuvio':'Stremio'}. Výchozí je Hybrid.`;
+  installLabel.textContent=direct?'Direct test – instalační odkaz':'Hybrid – instalační odkaz';
+  modeNote.textContent=direct?'Testovací režim. Použij jen když chceme ověřovat Direct variantu.':nuvio?'Stejný Hybrid addon, instalovaný navíc do Nuvio.':'Výchozí kompatibilní varianta pro běžné používání.';
+  installBtn.textContent=`Instalovat ${direct?'Direct test':'Hybrid'} do ${nuvio?'Nuvio':'Stremio'}`;
+  installBtn.classList.toggle('test',direct);installBtn.classList.toggle('nuvio',nuvio);generateBtn.classList.toggle('test',direct);
+  if(generatedToken)updateInstallLink();
 }
-
+function applyClient(client){selectedClient=client==='nuvio'?'nuvio':'stremio';refreshUi();}
+function applyMode(mode){selectedMode=mode==='direct'?'direct':'hybrid';refreshUi();}
 function updateInstallLink(){
-  const path=selectedMode==='direct'
-    ? `/stremio-sosac-subtitles/${generatedToken}/direct-test/manifest.json`
-    : `/stremio-sosac-subtitles/${generatedToken}/manifest.json`;
-
+  const path=selectedMode==='direct'?`/stremio-sosac-subtitles/${generatedToken}/direct-test/manifest.json`:`/stremio-sosac-subtitles/${generatedToken}/manifest.json`;
   document.getElementById('installUrl').value=`${location.origin}${path}`;
-  stremioBtn.href=`stremio://${location.host}${path}`;
+  installBtn.href=`${selectedClient}://${location.host}${path}`;
 }
 
+stremioClient.addEventListener('click',()=>applyClient('stremio'));
+nuvioClient.addEventListener('click',()=>applyClient('nuvio'));
 hybridMode.addEventListener('click',()=>applyMode('hybrid'));
 directMode.addEventListener('click',()=>applyMode('direct'));
-
-showPassword.addEventListener('click',()=>{
-  const show=password.type==='password';
-  password.type=show?'text':'password';
-  showPassword.textContent=show?'Skrýt':'Zobrazit';
-});
-
+showPassword.addEventListener('click',()=>{const show=password.type==='password';password.type=show?'text':'password';showPassword.textContent=show?'Skrýt':'Zobrazit';});
 document.getElementById('generate').addEventListener('click',()=>{
-  const username=document.getElementById('username').value.trim();
-  const passwordValue=password.value;
-  const status=document.getElementById('status');
-  document.getElementById('result').style.display='block';
-  if(!username||!passwordValue){
-    generatedToken='';
-    document.getElementById('installUrl').value='';
-    stremioBtn.href='#';
-    status.textContent='Vyplň uživatelské jméno a heslo.';
-    return;
-  }
-
-  generatedToken=toBase64Url({username,password:passwordValue});
-  updateInstallLink();
-  status.textContent=selectedMode==='direct'
-    ? 'Připravený Direct test odkaz.'
-    : 'Připravený Hybrid odkaz.';
+  const username=document.getElementById('username').value.trim();const passwordValue=password.value;const status=document.getElementById('status');document.getElementById('result').style.display='block';
+  if(!username||!passwordValue){generatedToken='';document.getElementById('installUrl').value='';installBtn.href='#';status.textContent='Vyplň uživatelské jméno a heslo.';return;}
+  generatedToken=toBase64Url({username,password:passwordValue});updateInstallLink();status.textContent=`Připravený ${selectedMode==='direct'?'Direct test':'Hybrid'} odkaz pro ${selectedClient==='nuvio'?'Nuvio':'Stremio'}.`;
 });
-
-document.getElementById('copyUrl').addEventListener('click',()=>{
-  const input=document.getElementById('installUrl');
-  copyText(input.value,input,document.getElementById('status'));
-});
-
-applyMode('hybrid');
-loadVersionBadge();
+document.getElementById('copyUrl').addEventListener('click',()=>{const input=document.getElementById('installUrl');copyText(input.value,input,document.getElementById('status'));});
+refreshUi();loadVersionBadge();
 </script>
 </body>
 </html>
