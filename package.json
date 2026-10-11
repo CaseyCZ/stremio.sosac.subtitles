@@ -1,0 +1,21 @@
+{
+  "name": "stremio-sosac-subtitles",
+  "version": "3.0.0",
+  "description": "Stremio titulkový addon s přímými titulky ze Sosáč a Streamuj.tv",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "pm2": "pm2 start ecosystem.config.js",
+    "version:check": "node scripts/check-version.js",
+    "release:patch": "npm version patch",
+    "release:minor": "npm version minor",
+    "release:major": "npm version major"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "stremio-addon-sdk": "1.6.10"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
