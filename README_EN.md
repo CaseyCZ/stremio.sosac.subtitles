@@ -31,8 +31,13 @@
 - 🧪 Direct test mode for isolated client compatibility testing
 - 🔗 title matching using supported identifiers
 - ⚡ short result cache and prepared compatibility subtitle files
+- 🔐 new installations use encrypted configuration
 - 🧩 separate add-on that does not alter video stream selection
 - 📱 works with common Stremio clients including web, desktop, Android / Google TV and Apple devices
+
+## Privacy and configuration
+
+New installations use a more secure encrypted configuration. Older installation links remain supported for backwards compatibility. The installation link is still sensitive and should not be shared.
 
 ## Related project
 
