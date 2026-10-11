@@ -32,8 +32,13 @@
 - 🧭 Streamuj Player API `d=19` s HTML fallbackem pro dohledání URL
 - 🔗 rozpoznání titulu podle podporovaných identifikátorů
 - ⚡ krátká cache výsledků a připravených kompatibilních subtitle souborů
+- 🔐 nové instalace používají šifrovanou konfiguraci
 - 🧩 samostatný addon, který nemění výběr video streamu
 - 📱 funguje na běžných Stremio klientech včetně webu, desktopu, Androidu / Google TV a Apple zařízení
+
+## Soukromí a konfigurace
+
+Nové instalace používají bezpečnější šifrovanou konfiguraci. Starší instalační odkazy zůstávají podporované kvůli zpětné kompatibilitě. Instalační odkaz je stále citlivý a neměl by se sdílet.
 
 ## Související projekt
 
