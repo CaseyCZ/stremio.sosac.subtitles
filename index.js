@@ -59,7 +59,8 @@ function isAllowedHost(hostname) {
         hostname === SOSAC_API_DOMAIN ||
         hostname === 'sosac.tv' ||
         hostname === 'www.sosac.tv' ||
-        hostname === 'v3-cinemeta.strem.io';
+        hostname === 'v3-cinemeta.strem.io' ||
+        hostname === 'cinemeta-live.strem.io';
 }
 
 function httpsGet(url, username, passMd5, customHeaders = {}, redirects = 0, timeoutMs = 20000) {
@@ -710,7 +711,7 @@ async function fetchSubtitlesFromStreamuj(videoId, username, passMd5, req) {
         }
         console.log('[PLAYER API] Žádné podporované titulky; zkouším HTML.');
     } catch (e) {
-        console.warn(`[PLAYER API] ${e.message}; zkouším HTML.`);
+        console.log(`[PLAYER API] ${e.message}; zkouším HTML.`);
     }
     return fetchSubtitlesFromHtml(videoId, username, passMd5, req);
 }
@@ -1115,7 +1116,11 @@ async function fetchSosacSeriesRaw(episodeId, username, passMd5) {
 
         return isRecord(data) ? data.item || data.episode || data : null;
     } catch (e) {
-        console.error(`[Sosac] Series chyba: ${e.message}`);
+        if (e.message === 'HTTP Status 404') {
+            console.log(`[Sosac] Series nenalezena přes přímý episode lookup: ${e.message}`);
+        } else {
+            console.error(`[Sosac] Series chyba: ${e.message}`);
+        }
         return null;
     }
 }
@@ -1147,7 +1152,11 @@ async function resolveSosacEpisode(id, season, episode, creds, skipDirectLookup 
             (selected.ep !== undefined && normalizeInt(selected.ep) !== episode)) return null;
         return selected;
     } catch (e) {
-        console.warn(`[Series] Detail seriálu není dostupný: ${e.message}`);
+        if (e.message === 'HTTP Status 404') {
+            console.log(`[Series] Detail seriálu není dostupný: ${e.message}`);
+        } else {
+            console.warn(`[Series] Detail seriálu není dostupný: ${e.message}`);
+        }
         return null;
     }
 }
@@ -1166,13 +1175,16 @@ function convertSrtToVtt(content) {
     if (/^WEBVTT(?:[ \t]|\n|$)/i.test(text)) return text + '\n';
 
     const timeRegex =
-        /^(?:(\d+):)?([0-5]\d):([0-5]\d)[,.](\d{3})[ \t]*-->[ \t]*(?:(\d+):)?([0-5]\d):([0-5]\d)[,.](\d{3})([ \t]+.*)?$/;
+        /^(?:(\d{1,3}):)?([0-5]?\d):([0-5]?\d)(?:[,.](\d{1,3}))?[ \t]*-->[ \t]*(?:(\d{1,3}):)?([0-5]?\d):([0-5]?\d)(?:[,.](\d{1,3}))?([ \t]+.*)?$/;
     const lines = text.split('\n');
     const cues = [];
     let current = null;
 
     const formatTime = (h, m, s, ms) =>
-        String(Number(h || 0)).padStart(2, '0') + ':' + m + ':' + s + '.' + ms;
+        String(Number(h || 0)).padStart(2, '0') + ':' +
+        String(Number(m)).padStart(2, '0') + ':' +
+        String(Number(s)).padStart(2, '0') + '.' +
+        String(ms || '0').padEnd(3, '0').slice(0, 3);
 
     const finishCue = () => {
         if (!current) return;
