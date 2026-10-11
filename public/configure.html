@@ -120,7 +120,7 @@ button,.btn{border:0;border-radius:12px;background:var(--accent2);color:#fff;fon
     </div>
   </div>
 
-  <div class="note">Instalační konfigurace je v odkazu zapsaná jako Base64URL. Není běžně čitelná na první pohled, ale Base64 není šifrování, proto instalační odkaz nesdílej.</div>
+  <div class="note">Nové instalační odkazy používají bezpečnější šifrovanou konfiguraci. Starší instalační odkazy zůstávají podporované kvůli zpětné kompatibilitě. Instalační odkaz je stále citlivý a neměl by se sdílet.</div>
 
   <button id="generate" class="primary" type="button">Vygenerovat instalační odkaz</button>
 
@@ -140,7 +140,6 @@ button,.btn{border:0;border-radius:12px;background:var(--accent2);color:#fff;fon
 <div class="foot" data-cookie-settings-host>Neoficiální komunitní addon pro Stremio a Nuvio. · <button type="button" class="cookie-settings-link" data-cookie-settings>Nastavení cookies</button></div>
 </main>
 <script>
-function toBase64Url(obj){const bytes=new TextEncoder().encode(JSON.stringify(obj));let binary='';bytes.forEach(b=>binary+=String.fromCharCode(b));return btoa(binary).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');}
 function copyText(value,input,status){if(!value)return;if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(value).then(()=>status.textContent='Odkaz zkopírován.').catch(()=>fallback());}else fallback();function fallback(){input.focus();input.select();try{document.execCommand('copy');status.textContent='Odkaz zkopírován.';}catch(e){status.textContent='Odkaz je označený. Zkopíruj ho ručně.';}}}
 
 const versionBadge=document.getElementById('versionBadge');
@@ -158,6 +157,20 @@ const generateBtn=document.getElementById('generate');
 let selectedClient='stremio';
 let selectedMode='hybrid';
 let generatedToken='';
+let configRequestId=0;
+
+async function createEncryptedToken(config){
+  const response=await fetch('/api/config-token',{
+    method:'POST',
+    headers:{'Content-Type':'application/json','Accept':'application/json'},
+    cache:'no-store',
+    body:JSON.stringify(config)
+  });
+  const data=await response.json().catch(()=>({}));
+  if(response.status===503)throw new Error('Šifrování konfigurace není na serveru připravené.');
+  if(!response.ok||!data.token)throw new Error('Nepodařilo se vytvořit šifrovanou konfiguraci.');
+  return data.token;
+}
 
 async function loadVersionBadge(){
   const candidates=['/health','/stremio-sosac-subtitles/health'];
@@ -190,10 +203,36 @@ nuvioClient.addEventListener('click',()=>applyClient('nuvio'));
 hybridMode.addEventListener('click',()=>applyMode('hybrid'));
 directMode.addEventListener('click',()=>applyMode('direct'));
 showPassword.addEventListener('click',()=>{const show=password.type==='password';password.type=show?'text':'password';showPassword.textContent=show?'Skrýt':'Zobrazit';});
-document.getElementById('generate').addEventListener('click',()=>{
-  const username=document.getElementById('username').value.trim();const passwordValue=password.value;const status=document.getElementById('status');document.getElementById('result').style.display='block';
+document.getElementById('generate').addEventListener('click',async()=>{
+  const requestId=++configRequestId;
+  const username=document.getElementById('username').value.trim();
+  const passwordValue=password.value;
+  const status=document.getElementById('status');
+  document.getElementById('result').style.display='block';
+
   if(!username||!passwordValue){generatedToken='';document.getElementById('installUrl').value='';installBtn.href='#';status.textContent='Vyplň uživatelské jméno a heslo.';return;}
-  generatedToken=toBase64Url({username,password:passwordValue});updateInstallLink();status.textContent=`Připravený ${selectedMode==='direct'?'Direct test':'Hybrid'} odkaz pro ${selectedClient==='nuvio'?'Nuvio':'Stremio'}.`;
+
+  generatedToken='';
+  document.getElementById('installUrl').value='';
+  installBtn.href='#';
+  generateBtn.disabled=true;
+  status.textContent='Šifruji konfiguraci…';
+
+  try{
+    const token=await createEncryptedToken({username,password:passwordValue});
+    if(requestId!==configRequestId)return;
+    generatedToken=token;
+    updateInstallLink();
+    status.textContent=`Připravený šifrovaný ${selectedMode==='direct'?'Direct test':'Hybrid'} odkaz pro ${selectedClient==='nuvio'?'Nuvio':'Stremio'}.`;
+  }catch(error){
+    if(requestId!==configRequestId)return;
+    generatedToken='';
+    document.getElementById('installUrl').value='';
+    installBtn.href='#';
+    status.textContent=error&&error.message?error.message:'Nepodařilo se vytvořit šifrovanou konfiguraci.';
+  }finally{
+    if(requestId===configRequestId)generateBtn.disabled=false;
+  }
 });
 document.getElementById('copyUrl').addEventListener('click',()=>{const input=document.getElementById('installUrl');copyText(input.value,input,document.getElementById('status'));});
 refreshUi();loadVersionBadge();
