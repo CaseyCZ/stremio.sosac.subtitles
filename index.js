@@ -34,7 +34,7 @@ const manifest = {
     id: 'org.stremio.sosac.streamuj.subtitles.public',
     version: require('./package.json').version,
     name: 'Sosáč + Streamuj CZ Titulky',
-    description: 'Komunitní doplněk s přímými titulky ze Sosáč / Streamuj.tv',
+    description: 'HYBRID – spolehlivé titulky (doporučeno)',
     types: ['movie', 'series'],
     idPrefixes: ['tt', 'sosac', 'sosac2', 'tmdb'],
     resources: ['subtitles'],
@@ -2246,8 +2246,8 @@ app.get('/:config/direct-test/manifest.json', (req, res) => {
     res.json({
         ...addonInterface.manifest,
         id: `${addonInterface.manifest.id}.directtest`,
-        name: `${addonInterface.manifest.name} [DIRECT TEST]`,
-        description: 'DIRECT TEST fáze 2: původní SRT obsah beze změny, URL končí .srt, MIME zůstává text/plain bez Content-Disposition.',
+        name: addonInterface.manifest.name,
+        description: 'DIRECT TEST – přímé titulky',
         behaviorHints: {
             configurable: true,
             configurationRequired: false
