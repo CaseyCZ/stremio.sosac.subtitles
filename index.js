@@ -1780,11 +1780,16 @@ const subtitleLookupPending = new Map();
 const subtitleLookupSecret = crypto.randomBytes(32);
 
 function subtitleLookupKey(req, creds, identity) {
+    const requestContext = subtitleRequestContext.getStore();
+    const deliveryMode = requestContext && requestContext.deliveryMode === 'direct-test'
+        ? 'direct-test' : 'production-vtt';
+
     return crypto.createHmac('sha256', subtitleLookupSecret)
         .update(JSON.stringify([
             getBaseUrl(req),
             identity.type,
             identity.id,
+            deliveryMode,
             creds.username,
             creds.passMd5
         ]))
