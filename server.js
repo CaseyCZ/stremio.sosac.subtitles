@@ -138,6 +138,18 @@ app.get(['/:config', '/:config/configure'], (req, res, next) => {
     return res.redirect(302, target);
 });
 
+// The standalone DIRECT TEST manifest makes Stremio open /:config/direct-test
+// when the user taps Configure. Redirect this path to the same settings page.
+app.get(['/:config/direct-test', '/:config/direct-test/configure'], (req, res, next) => {
+    const token = String(req.params.config || '');
+    if (!token.startsWith('enc1.') && !decodeConfigToken(token)) {
+        return next();
+    }
+
+    const target = req.path.endsWith('/configure') ? '../../configure' : '../configure';
+    return res.redirect(302, target);
+});
+
 app.post('/api/config-token', (req, res) => {
     res.setHeader('Cache-Control', 'no-store');
 
