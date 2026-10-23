@@ -126,6 +126,18 @@ app.get(['/', '/configure'], (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'configure.html'));
 });
 
+// Stremio opens an add-on's configuration URL at the token root.
+// Keep the public URL prefix when redirecting through Nginx.
+app.get(['/:config', '/:config/configure'], (req, res, next) => {
+    const token = String(req.params.config || '');
+    if (!token.startsWith('enc1.') && !decodeConfigToken(token)) {
+        return next();
+    }
+
+    const target = req.path.endsWith('/configure') ? '../configure' : 'configure';
+    return res.redirect(302, target);
+});
+
 app.post('/api/config-token', (req, res) => {
     res.setHeader('Cache-Control', 'no-store');
 
