@@ -1747,15 +1747,22 @@ async function findDirectSubtitles(req, targetData, creds) {
 // Stremio dostává pouze přímé Streamuj URL.
 // Do logu záměrně nezapisujeme celé adresy ani jejich query parametry.
 function buildSubtitleResponse(req, res, subtitles) {
+    const requestContext = subtitleRequestContext.getStore();
+    const isDirectTest = requestContext && requestContext.deliveryMode === 'direct-test';
+    const trackLabel = isDirectTest
+        ? 'DIRECT TEST – přímé titulky'
+        : 'Sosáč + Streamuj CZ Titulky – HYBRID';
     const result = {
-        subtitles: subtitles.map(sub => ({
+        subtitles: subtitles.map((sub, index) => ({
             id: sub.id,
             lang: sub.lang,
-            url: sub.url
+            url: sub.url,
+            label: subtitles.length > 1
+                ? `${trackLabel} (${index + 1})`
+                : trackLabel
         }))
     };
 
-    const requestContext = subtitleRequestContext.getStore();
     console.log('[FINAL RESPONSE]', JSON.stringify({
         requestId: res.locals.subtitleRequestId,
         mode: requestContext && requestContext.deliveryMode
