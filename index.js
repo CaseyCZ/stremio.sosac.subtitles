@@ -2243,8 +2243,8 @@ app.get('/:config/direct-test/manifest.json', (req, res) => {
     res.json({
         ...addonInterface.manifest,
         id: `${addonInterface.manifest.id}.directtest`,
-        name: addonInterface.manifest.name,
-        description: 'DIRECT TEST – přímé titulky',
+        name: 'DIRECT TEST – přímé titulky',
+        description: 'Původní titulky přímo ze Streamuj.tv (test)',
         behaviorHints: {
             configurable: true,
             configurationRequired: false
