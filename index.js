@@ -1705,30 +1705,27 @@ async function findDirectSubtitles(req, targetData, creds) {
         const requestContext = subtitleRequestContext.getStore();
         const isDirectTest = requestContext && requestContext.deliveryMode === 'direct-test';
 
-        if (found.length && (DIRECT_DIAGNOSTICS || isDirectTest)) {
-            await diagnoseDirectSubtitleTracks(found, creds, req, videoId, isDirectTest);
+        // The real Direct Test must never download subtitle file bytes on
+        // our server, including the diagnostic sample requests.
+        if (found.length && DIRECT_DIAGNOSTICS && !isDirectTest) {
+            await diagnoseDirectSubtitleTracks(found, creds, req, videoId);
         }
 
-        let prepared;
-        if (isDirectTest) {
-            prepared = [];
-            for (const sub of found.slice(0, 12)) {
-                try {
-                    prepared.push(await prepareDirectSrtExtensionTestFile(
-                        sub,
-                        creds,
-                        req
-                    ));
-                } catch (e) {
-                    console.error(`[SUBTITLE DIRECT TEST] SRT extension test selhal: ${e.message}`);
-                }
-            }
-        } else {
-            prepared = await prepareHybridSubtitleTracks(req, found, creds);
-        }
+        const prepared = isDirectTest
+            ? prepareDirectSubtitleTracks(found)
+            : await prepareHybridSubtitleTracks(req, found, creds);
 
         if (isDirectTest && prepared.length) {
-            console.log(`[SUBTITLE DIRECT TEST] phase=srt-extension Streamuj ID ${videoId}: ${prepared.length} stop`);
+            console.log('[SUBTITLE DIRECT TEST]', JSON.stringify({
+                phase: 'original-streamuj-url',
+                videoId,
+                count: prepared.length,
+                tracks: prepared.map(sub => ({
+                    lang: sub.lang,
+                    host: subtitleUrlShape(sub.url).host,
+                    pathExtension: subtitleUrlShape(sub.url).pathExtension
+                }))
+            }));
         }
 
         if (prepared.length) {
